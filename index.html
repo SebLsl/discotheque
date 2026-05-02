@@ -696,7 +696,10 @@ async function doAddAlbum(){
   if(albums.some(a=>a.artist.toLowerCase()===artist.toLowerCase()&&a.album.toLowerCase()===album.toLowerCase())){alert('Album déjà présent.');return;}
   const n={id:Date.now().toString(36)+Math.random().toString(36).slice(2),artist,album,tags:[],support:{...addSupportState},cover_url:null,album_link:null,artist_link:null};
   try{await sb('albums',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(n)});albums.push(n);backup();}
-  catch(e){setSyncStatus('⚠️ Erreur sync');}
+  catch(e){
+    setSyncStatus('⚠️ '+e.message.substring(0,80));
+    alert('Erreur: '+e.message.substring(0,200));
+  }
   closeSheet('addSheet');renderFilters();renderGrid();
 }
 
