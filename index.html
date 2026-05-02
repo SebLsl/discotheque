@@ -313,10 +313,18 @@ let bulkPendingTags = [];
 
 // ── SUPABASE ─────────────────────────────────────────────
 async function sb(path, opts={}){
-  const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers:{...SBH,...(opts.headers||{})}});
-  if(!r.ok) throw new Error(await r.text());
-  if(r.status===204) return null;
-  return r.json();
+  const headers = {...SBH,...(opts.headers||{})};
+  if(opts.method==='POST'||opts.method==='PATCH') {
+    headers['Prefer'] = opts.method==='POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal';
+  }
+  const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers});
+  if(!r.ok){
+    const txt = await r.text();
+    console.error('Supabase error:', r.status, txt);
+    throw new Error(txt);
+  }
+  if(r.status===204||r.status===201) return null;
+  try{ return r.json(); }catch(e){ return null; }
 }
 
 async function loadAlbums(){
