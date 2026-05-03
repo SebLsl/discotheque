@@ -152,6 +152,7 @@ header h1 span{font-style:italic}
     <button class="hbtn" id="selectModeBtn" onclick="toggleSelectMode()">Sélection</button>
     <button class="hbtn" onclick="openAdd()">+ Album</button>
     <button class="hbtn" onclick="openImport()">Importer</button>
+    <button class="hbtn" onclick="openTagsManager()">Tags</button>
   </div>
 </header>
 
@@ -317,6 +318,11 @@ async function sb(path, opts={}){
   if(opts.method==='POST'||opts.method==='PATCH') {
     headers['Prefer'] = opts.method==='POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal';
   }
+  // Add range header to bypass 1000 row limit on GET
+  if(!opts.method || opts.method==='GET') {
+    headers['Range-Unit'] = 'items';
+    headers['Range'] = '0-9999';
+  }
   const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers});
   if(!r.ok){
     const txt = await r.text();
@@ -390,7 +396,24 @@ function renderFilters(){
   area.innerHTML=html;
 }
 
-function toggleFilter(tag){showUntaggedOnly=false;activeFilters.has(tag)?activeFilters.delete(tag):activeFilters.add(tag);renderFilters();renderGrid();}
+function toggleFilter(tag){
+  showUntaggedOnly=false;
+  if(activeFilters.has(tag)){
+    activeFilters.delete(tag);
+  } else {
+    // Each axis is independent: only one active filter per axis group
+    const styleT=TAGS_BUILTIN.style.includes(tag);
+    const mondeT=TAGS_BUILTIN.monde.includes(tag);
+    const affectifT=TAGS_BUILTIN.affectif.includes(tag);
+    // Remove other filters from same axis
+    if(styleT) TAGS_BUILTIN.style.forEach(t=>activeFilters.delete(t));
+    else if(mondeT) TAGS_BUILTIN.monde.forEach(t=>activeFilters.delete(t));
+    else if(affectifT) TAGS_BUILTIN.affectif.forEach(t=>activeFilters.delete(t));
+    else customTags.forEach(t=>activeFilters.delete(t));
+    activeFilters.add(tag);
+  }
+  renderFilters();renderGrid();
+}
 function clearFilters(){activeFilters.clear();showUntaggedOnly=false;renderFilters();renderGrid();}
 function filterUntagged(){showUntaggedOnly=!showUntaggedOnly;activeFilters.clear();renderFilters();renderGrid();}
 
@@ -504,7 +527,9 @@ function openAlbum(id){
 function ptToggle(tag){
   const idx=pendingTags.indexOf(tag);
   if(idx>=0)pendingTags.splice(idx,1);else pendingTags.push(tag);
-  document.querySelectorAll('.ttoggle').forEach(el=>{if(el.dataset.tag===tag)el.classList.toggle('on');});
+  document.querySelectorAll('#albumSheet .ttoggle').forEach(el=>{
+    if(el.dataset.tag===tag) el.classList.toggle('on', pendingTags.includes(tag));
+  });
 }
 
 function addCustomTag(){
@@ -674,10 +699,26 @@ async function doImport(){
     }
     backup();
   }
+  // Remove albums that were only on Qobuz and are no longer in the import
+  const importedKeys = new Set(result.rows.map(r=>r.artist.toLowerCase()+'||'+r.album.toLowerCase()));
+  const toDelete = albums.filter(a=>{
+    const sup = a.support||{qobuz:true};
+    const onlyQobuz = sup.qobuz && !sup.vinyl && !sup.cd;
+    const stillInQobuz = importedKeys.has(a.artist.toLowerCase()+'||'+a.album.toLowerCase());
+    return onlyQobuz && !stillInQobuz;
+  });
+  let deleted=0;
+  for(const a of toDelete){
+    try{await sb('albums?id=eq.'+a.id,{method:'DELETE'});deleted++;}catch(e){}
+  }
+  albums = albums.filter(a=>!toDelete.includes(a));
+
   btn.disabled=false;hideSync();setSyncStatus('✓ Synchronisé');
   closeSheet('importSheet');document.getElementById('importPaste').value='';
   renderFilters();renderGrid();
-  alert(`Import ${result.format} — ${added} album(s) ajouté(s) sur ${result.rows.length} détectés.`);
+  const msg = [`Import ${result.format} — ${added} ajouté(s)`];
+  if(deleted>0) msg.push(`${deleted} supprimé(s) (retirés de Qobuz)`);
+  alert(msg.join(', ')+` sur ${result.rows.length} détectés.`);
 }
 
 // ── ADD MANUAL ───────────────────────────────────────────
@@ -718,8 +759,103 @@ async function ensureSupportColumn(){
   // Just proceed; if support col doesn't exist yet, we'll handle via JSONB
 }
 
+
+// ── TAGS MANAGER ─────────────────────────────────────────
+function openTagsManager(){
+  renderTagsManager();
+  document.getElementById('tagsSheet').classList.add('open');
+}
+
+function renderTagsManager(){
+  const el=document.getElementById('tagsManagerList');
+  if(!customTags.length){
+    el.innerHTML='<p style="font-size:0.82rem;color:#5a5652;text-align:center;padding:20px">Aucun tag personnalisé</p>';
+    return;
+  }
+  el.innerHTML=customTags.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2a2a2e">
+      <span id="tagLabel_${i}" style="flex:1;font-size:0.85rem;color:#f0ede8">${t}</span>
+      <input id="tagEdit_${i}" type="text" value="${t}" style="flex:1;display:none;background:#1e1e21;border:1px solid #c8a96e;border-radius:6px;padding:5px 8px;color:#f0ede8;font-size:0.82rem;outline:none">
+      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem" onclick="startEditTag(${i})">✏️</button>
+      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem" onclick="saveEditTag(${i})" id="saveTagBtn_${i}" style="display:none">✓</button>
+      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem;color:#e05a5a;border-color:#e05a5a44" onclick="deleteGlobalTag(${i})">✕</button>
+    </div>`).join('');
+}
+
+function startEditTag(i){
+  document.getElementById('tagLabel_'+i).style.display='none';
+  document.getElementById('tagEdit_'+i).style.display='block';
+  document.getElementById('saveTagBtn_'+i).style.display='block';
+  document.getElementById('tagEdit_'+i).focus();
+}
+
+function saveEditTag(i){
+  const newVal=document.getElementById('tagEdit_'+i).value.trim();
+  if(!newVal)return;
+  const oldVal=customTags[i];
+  customTags[i]=newVal;
+  saveCustomTags();
+  // Update all albums that had the old tag
+  albums.forEach(a=>{
+    if(!a.tags)return;
+    const idx=a.tags.indexOf(oldVal);
+    if(idx>=0){
+      a.tags[idx]=newVal;
+      sb('albums?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify({tags:a.tags})}).catch(()=>{});
+    }
+  });
+  backup();
+  renderTagsManager();
+  renderFilters();
+}
+
+function deleteGlobalTag(i){
+  const tag=customTags[i];
+  if(!confirm('Supprimer le tag "'+tag+'" de tous les albums ?'))return;
+  customTags.splice(i,1);
+  saveCustomTags();
+  // Remove from all albums
+  albums.forEach(a=>{
+    if(!a.tags)return;
+    const idx=a.tags.indexOf(tag);
+    if(idx>=0){
+      a.tags.splice(idx,1);
+      sb('albums?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify({tags:a.tags})}).catch(()=>{});
+    }
+  });
+  backup();
+  renderTagsManager();
+  renderFilters();
+  renderGrid();
+}
+
+function addGlobalTag(){
+  const inp=document.getElementById('newGlobalTagInput');
+  const val=inp.value.trim();if(!val)return;
+  if(customTags.includes(val)){alert('Tag déjà existant.');return;}
+  customTags.push(val);saveCustomTags();
+  inp.value='';
+  renderTagsManager();
+  renderFilters();
+}
 loadAlbums();
 </script>
 
+<!-- TAGS MANAGEMENT SHEET -->
+
+<div class="overlay" id="tagsSheet" onclick="if(event.target===this)closeSheet('tagsSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">Gérer les tags personnalisés</div>
+    <div id="tagsManagerList"></div>
+    <div class="newtag-row" style="margin-top:16px">
+      <input type="text" id="newGlobalTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addGlobalTag()">
+      <button class="hbtn primary" onclick="addGlobalTag()">+ Ajouter</button>
+    </div>
+    <div class="mrow">
+      <button class="hbtn" onclick="closeSheet('tagsSheet')">Fermer</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
