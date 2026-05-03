@@ -415,9 +415,10 @@ function renderFilters(){
 document.addEventListener('click', function(e){
   const chip=e.target.closest('.tchip');
   if(!chip||!chip.closest('#tagFilterArea')) return;
+  e.preventDefault();
+  e.stopPropagation();
   if(chip.dataset.action==='clear'){ clearFilters(); return; }
   if(chip.dataset.action==='clear-group'){
-    // Clear only filters from this group
     const groupTags = chip.dataset.group==='custom' ? customTags :
       (TAGS_BUILTIN[chip.dataset.group]||[]);
     groupTags.forEach(t=>activeFilters.delete(t));
@@ -426,7 +427,7 @@ document.addEventListener('click', function(e){
     return;
   }
   if(chip.dataset.tag){ toggleFilter(chip.dataset.tag); }
-});
+}, {capture: true});
 
 function getAxis(tag){
   if(TAGS_BUILTIN.style.includes(tag)) return 'style';
@@ -442,24 +443,8 @@ function toggleFilter(tag){
   } else {
     activeFilters.add(tag);
   }
-  // Update chip classes in-place
-  document.querySelectorAll('#tagFilterArea .tchip[data-tag]').forEach(chip=>{
-    if(activeFilters.has(chip.dataset.tag)){
-      chip.classList.add('active');
-    } else {
-      chip.classList.remove('active');
-    }
-  });
-  // Update each "Tous" chip independently per group
-  document.querySelectorAll('#tagFilterArea .tchip[data-group]').forEach(chip=>{
-    const groupTags = chip.dataset.group==='custom' ? customTags : (TAGS_BUILTIN[chip.dataset.group]||[]);
-    const groupHasActive = groupTags.some(t=>activeFilters.has(t));
-    if(groupHasActive || showUntaggedOnly){
-      chip.classList.remove('active');
-    } else {
-      chip.classList.add('active');
-    }
-  });
+  // Rebuild filter chips from scratch — guarantees visual sync
+  renderFilters();
   renderGrid();
 }
 function clearFilters(){activeFilters.clear();showUntaggedOnly=false;renderFilters();renderGrid();}
@@ -567,7 +552,7 @@ function openAlbum(id){
   // Support
   renderSupportBtns('sheetSupport', pendingSupport, (sup)=>{pendingSupport=sup;});
 
-  // Tags - use data-tag, event delegation handles clicks
+  // Tags - use data-tag, event delegation handles clicks (NO onclick)
   ['Style','Monde','Affectif'].forEach(sec=>{
     const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
     const el=document.getElementById('sheet'+sec);
@@ -577,7 +562,6 @@ function openAlbum(id){
       const d=document.createElement('div');
       d.className='ttoggle'+(pendingTags.includes(t)?' on':'');
       d.dataset.tag=t;
-      d.dataset.sheet='album';
       d.textContent=s;
       el.appendChild(d);
     });
@@ -590,29 +574,12 @@ function openAlbum(id){
 function ptToggle(tag){
   const idx=pendingTags.indexOf(tag);
   if(idx>=0) pendingTags.splice(idx,1); else pendingTags.push(tag);
-  ['Style','Monde','Affectif'].forEach(sec=>{
-    const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
-    const el=document.getElementById('sheet'+sec);
-    el.innerHTML='';
-    TAGS_BUILTIN[key].forEach(t=>{
-      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
-      const d=document.createElement('div');
-      d.className='ttoggle'+(pendingTags.includes(t)?' on':'');
-      d.textContent=s;
-      d.dataset.tag=t;
-      d.onclick=()=>ptToggle(t);
-      el.appendChild(d);
-    });
-  });
-  const cel=document.getElementById('sheetCustom');
-  cel.innerHTML='';
-  customTags.forEach(t=>{
-    const d=document.createElement('div');
-    d.className='ttoggle custom'+(pendingTags.includes(t)?' on':'');
-    d.textContent=t;
-    d.dataset.tag=t;
-    d.onclick=()=>ptToggle(t);
-    cel.appendChild(d);
+  // Update visual state directly on existing elements - no DOM recreation
+  document.querySelectorAll('#albumSheet .ttoggle').forEach(el=>{
+    if(el.dataset.tag===tag){
+      if(pendingTags.includes(tag)) el.classList.add('on');
+      else el.classList.remove('on');
+    }
   });
 }
 function addCustomTag(){
@@ -698,7 +665,10 @@ function btToggle(tag){
   if(idx>=0)bulkPendingTags.splice(idx,1);else bulkPendingTags.push(tag);
   // Update visual state directly on element
   document.querySelectorAll('#bulkSheet .ttoggle').forEach(el=>{
-    if(el.dataset.tag===tag) el.classList.toggle('on', bulkPendingTags.includes(tag));
+    if(el.dataset.tag===tag){
+      if(bulkPendingTags.includes(tag)) el.classList.add('on');
+      else el.classList.remove('on');
+    }
   });
 }
 
@@ -709,9 +679,7 @@ function addBulkCustomTag(){
   if(!bulkPendingTags.includes(val))bulkPendingTags.push(val);
   inp.value='';
   // Re-render custom section
-  document.getElementById('bulkCustom').innerHTML=customTags.map(t=>
-    `<div class="ttoggle custom ${bulkPendingTags.includes(t)?'on':''}" onclick='btToggle(${JSON.stringify(t)})' data-tag='${escAttr(t)}'>${t}</div>`
-  ).join('');
+  renderCustomToggles('bulkCustom', bulkPendingTags);
   renderFilters();
 }
 
