@@ -48,6 +48,7 @@ header h1 span{font-style:italic}
 .tg-label{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.12em;color:#5a5652;font-weight:500}
 .tag-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
 .tag-scroll::-webkit-scrollbar{display:none}
+.tag-scroll.multirow{flex-wrap:wrap;overflow-x:visible;max-height:none}
 .tchip{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:4px 11px;font-size:0.76rem;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0}
 .tchip:hover{border-color:#c8a96e;color:#c8a96e}
 .tchip.active{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
@@ -210,17 +211,15 @@ header h1 span{font-style:italic}
     <div class="tgrid" id="sheetMonde"></div>
     <div class="msec">Affectif</div>
     <div class="tgrid" id="sheetAffectif"></div>
-    <div class="msec">Tags personnalisés</div>
-    <div class="tgrid" id="sheetCustom"></div>
-    <div class="newtag-row">
-      <input type="text" id="newTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addCustomTag()">
-      <button class="hbtn primary" onclick="addCustomTag()">+ Tag</button>
-    </div>
-    <div class="mrow">
-      <button class="hbtn primary" id="saveBtn" onclick="saveAlbum()">Enregistrer</button>
-      <button class="hbtn" style="color:#e05a5a;border-color:#e05a5a33" onclick="deleteAlbum()">Supprimer</button>
-      <button class="hbtn" onclick="closeSheet('albumSheet')">Annuler</button>
-    </div>
+
+```
+<div class="mrow">
+  <button class="hbtn primary" id="saveBtn" onclick="saveAlbum()">Enregistrer</button>
+  <button class="hbtn" style="color:#e05a5a;border-color:#e05a5a33" onclick="deleteAlbum()">Supprimer</button>
+  <button class="hbtn" onclick="closeSheet('albumSheet')">Annuler</button>
+</div>
+```
+
   </div>
 </div>
 
@@ -237,16 +236,14 @@ header h1 span{font-style:italic}
     <div class="tgrid" id="bulkMonde"></div>
     <div class="msec">Affectif</div>
     <div class="tgrid" id="bulkAffectif"></div>
-    <div class="msec">Tags personnalisés</div>
-    <div class="tgrid" id="bulkCustom"></div>
-    <div class="newtag-row">
-      <input type="text" id="bulkNewTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addBulkCustomTag()">
-      <button class="hbtn primary" onclick="addBulkCustomTag()">+ Tag</button>
-    </div>
-    <div class="mrow">
-      <button class="hbtn primary" onclick="applyBulkTags()">Appliquer</button>
-      <button class="hbtn" onclick="closeSheet('bulkSheet')">Annuler</button>
-    </div>
+
+```
+<div class="mrow">
+  <button class="hbtn primary" onclick="applyBulkTags()">Appliquer</button>
+  <button class="hbtn" onclick="closeSheet('bulkSheet')">Annuler</button>
+</div>
+```
+
   </div>
 </div>
 
@@ -295,13 +292,16 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const SBH = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 
 // ── TAGS ────────────────────────────────────────────────
-const TAGS_BUILTIN = {
+const TAGS_DEFAULT = {
   style:["Jazz - Les grands du jazz","Jazz - Jazz classique","Jazz - Jazz vocal","Jazz - Jazz fusion","Jazz - Jazz actuel","Jazz - Jazz français","Jazz - Jazz nordique","Jazz - Jazz japonais","Rock - Rock classique","Rock - Hard rock / Metal","Rock - Rock indé","Rock - Rock progressif","Rock - Punk / New wave","Hip-hop / Rap - Rap US","Hip-hop / Rap - Rap français","Hip-hop / Rap - Rap UK","Hip-hop / Rap - Rap Afrique","Hip-hop / Rap - Rap autres","Électro - House / Techno","Électro - Ambient / Downtempo","Électro - Trip-hop","Électro - Électro expérimentale","Soul / Funk / R&B - Soul classique","Soul / Funk / R&B - Funk","Soul / Funk / R&B - R&B contemporain","Soul / Funk / R&B - Gospel","Classique - Baroque","Classique - Classique / Romantique","Classique - Contemporain","Folk / Roots - Folk anglo-saxon","Folk / Roots - Blues","Folk / Roots - Country / Americana","Pop - Pop internationale","Pop - Variété française"],
   monde:["Musiques du monde — Afrique","Musiques du monde — Amériques","Musiques du monde — Asie","Musiques du monde — Europe","Musiques du monde — Océanie"],
   affectif:["Indispensables","Coups de cœur","Découvertes récentes","À explorer"]
 };
-let customTags = JSON.parse(localStorage.getItem('disco_custom_tags')||'[]');
-function saveCustomTags(){localStorage.setItem('disco_custom_tags',JSON.stringify(customTags))}
+let TAGS_BUILTIN = JSON.parse(localStorage.getItem('disco_tags')||'null') || JSON.parse(JSON.stringify(TAGS_DEFAULT));
+function saveTags(){localStorage.setItem('disco_tags',JSON.stringify(TAGS_BUILTIN));}
+// Keep customTags as empty for backward compat
+const customTags = [];
+function saveCustomTags(){}
 
 // ── STATE ────────────────────────────────────────────────
 let albums = [];
@@ -334,8 +334,17 @@ async function sb(path, opts={}){
 async function loadAlbums(){
   showSync('Chargement…',0);
   try{
-    albums = await sb('albums?select=*&order=artist.asc&limit=5000') || [];
-    setSyncStatus('✓ Synchronisé');
+    // Paginate to bypass Supabase 1000-row default limit
+    let all=[], offset=0, pageSize=1000;
+    while(true){
+      const page = await sb('albums?select=*&order=artist.asc&limit='+pageSize+'&offset='+offset) || [];
+      all = all.concat(page);
+      if(page.length < pageSize) break;
+      offset += pageSize;
+      showSync('Chargement… '+all.length,Math.min(90,all.length/30));
+    }
+    albums = all;
+    setSyncStatus('✓ Synchronisé ('+albums.length+' albums)');
   }catch(e){
     setSyncStatus('⚠️ Hors ligne');
     albums = JSON.parse(localStorage.getItem('disco_backup')||'[]');
@@ -392,7 +401,7 @@ function renderFilters(){
     lbl.className='tg-label'; lbl.textContent=g.label;
     wrap.appendChild(lbl);
     const scroll=document.createElement('div');
-    scroll.className='tag-scroll';
+    scroll.className='tag-scroll'+(g.key==='style'?' multirow':'');
     // "Tous" for this group — active when no filter in this group
     const all=document.createElement('div');
     all.className='tchip all'+(!groupHasActive&&!showUntaggedOnly?' active':'');
@@ -568,7 +577,7 @@ function openAlbum(id){
       el.appendChild(d);
     });
   });
-  renderCustomToggles('sheetCustom',pendingTags);
+
   document.getElementById('newTagInput').value='';
   document.getElementById('albumSheet').classList.add('open');
 }
@@ -584,28 +593,9 @@ function ptToggle(tag){
     }
   });
 }
-function addCustomTag(){
-  const inp=document.getElementById('newTagInput');
-  const val=inp.value.trim();if(!val)return;
-  if(!customTags.includes(val)){customTags.push(val);saveCustomTags();}
-  if(!pendingTags.includes(val))pendingTags.push(val);
-  inp.value='';
-  renderCustomToggles('sheetCustom',pendingTags,(t)=>ptToggle(t));
-  renderFilters();
-}
 
-function renderCustomToggles(containerId,activeTags){
-  const el=document.getElementById(containerId);
-  el.innerHTML='';
-  customTags.forEach(t=>{
-    const d=document.createElement('div');
-    d.className='ttoggle custom'+(activeTags.includes(t)?' on':'');
-    d.textContent=t;
-    d.dataset.tag=t;
-    d.dataset.sheet=containerId.startsWith('bulk')?'bulk':'album';
-    el.appendChild(d);
-  });
-}
+
+
 async function saveAlbum(){
   const a=albums.find(x=>x.id===currentId);if(!a)return;
   const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='…';
@@ -828,22 +818,40 @@ async function ensureSupportColumn(){
 
 
 // ── TAGS MANAGER ─────────────────────────────────────────
+const AXIS_LABELS = {style:'Style', monde:'Musiques du monde', affectif:'Affectif'};
+let currentAxis = 'style';
+
 function openTagsManager(){
+  currentAxis='style';
+  renderAxisSelector();
   renderTagsManager();
   document.getElementById('tagsSheet').classList.add('open');
+}
+
+function renderAxisSelector(){
+  const el=document.getElementById('tagsAxisSelector');
+  el.innerHTML='';
+  Object.entries(AXIS_LABELS).forEach(([key,label])=>{
+    const b=document.createElement('button');
+    b.className='hbtn'+(currentAxis===key?' primary':'');
+    b.textContent=label;
+    b.onclick=()=>{ currentAxis=key; renderAxisSelector(); renderTagsManager(); };
+    el.appendChild(b);
+  });
 }
 
 function renderTagsManager(){
   const el=document.getElementById('tagsManagerList');
   el.innerHTML='';
-  if(!customTags.length){
+  const axisTags=TAGS_BUILTIN[currentAxis]||[];
+  if(!axisTags.length){
     const p=document.createElement('p');
     p.style.cssText='font-size:0.82rem;color:#5a5652;text-align:center;padding:20px';
     p.textContent='Aucun tag personnalisé';
     el.appendChild(p);
     return;
   }
-  customTags.forEach((t,i)=>{
+  axisTags.forEach((t,i)=>{
     const row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2a2a2e';
     const lbl=document.createElement('span');
@@ -882,9 +890,9 @@ function startEditTag(i){
 function saveEditTag(i){
   const newVal=document.getElementById('tagEdit_'+i).value.trim();
   if(!newVal)return;
-  const oldVal=customTags[i];
-  customTags[i]=newVal;
-  saveCustomTags();
+  const oldVal=TAGS_BUILTIN[currentAxis][i];
+  TAGS_BUILTIN[currentAxis][i]=newVal;
+  saveTags();
   // Update all albums that had the old tag
   albums.forEach(a=>{
     if(!a.tags)return;
@@ -900,10 +908,10 @@ function saveEditTag(i){
 }
 
 function deleteGlobalTag(i){
-  const tag=customTags[i];
+  const tag=TAGS_BUILTIN[currentAxis][i];
   if(!confirm('Supprimer le tag "'+tag+'" de tous les albums ?'))return;
-  customTags.splice(i,1);
-  saveCustomTags();
+  TAGS_BUILTIN[currentAxis].splice(i,1);
+  saveTags();
   // Remove from all albums
   albums.forEach(a=>{
     if(!a.tags)return;
@@ -922,8 +930,8 @@ function deleteGlobalTag(i){
 function addGlobalTag(){
   const inp=document.getElementById('newGlobalTagInput');
   const val=inp.value.trim();if(!val)return;
-  if(customTags.includes(val)){alert('Tag déjà existant.');return;}
-  customTags.push(val);saveCustomTags();
+  if(TAGS_BUILTIN[currentAxis].includes(val)){alert('Tag déjà existant.');return;}
+  TAGS_BUILTIN[currentAxis].push(val);saveTags();
   inp.value='';
   renderTagsManager();
   renderFilters();
@@ -944,7 +952,8 @@ loadAlbums();
 <div class="overlay" id="tagsSheet" onclick="if(event.target===this)closeSheet('tagsSheet')">
   <div class="sheet">
     <div class="handle"></div>
-    <div class="sheet-title">Gérer les tags personnalisés</div>
+    <div class="sheet-title">Gérer les tags</div>
+    <div id="tagsAxisSelector" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
     <div id="tagsManagerList"></div>
     <div class="newtag-row" style="margin-top:16px">
       <input type="text" id="newGlobalTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addGlobalTag()">
