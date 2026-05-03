@@ -48,7 +48,7 @@ header h1 span{font-style:italic}
 .tg-label{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.12em;color:#5a5652;font-weight:500}
 .tag-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
 .tag-scroll::-webkit-scrollbar{display:none}
-.tag-scroll.multirow{flex-wrap:wrap;overflow-x:visible;max-height:none}
+.tag-scroll.multirow{flex-wrap:wrap;overflow-x:auto;max-height:108px;align-content:flex-start}
 .tchip{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:4px 11px;font-size:0.76rem;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0}
 .tchip:hover{border-color:#c8a96e;color:#c8a96e}
 .tchip.active{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
@@ -334,20 +334,26 @@ async function sb(path, opts={}){
 async function loadAlbums(){
   showSync('Chargement…',0);
   try{
-    // Paginate to bypass Supabase 1000-row default limit
-    let all=[], offset=0, pageSize=1000;
+    // Use Range header for pagination (Supabase correct syntax)
+    let all=[], start=0, pageSize=1000;
     while(true){
-      const page = await sb('albums?select=*&order=artist.asc&limit='+pageSize+'&offset='+offset) || [];
-      all = all.concat(page);
-      if(page.length < pageSize) break;
-      offset += pageSize;
-      showSync('Chargement… '+all.length,Math.min(90,all.length/30));
+      const end=start+pageSize-1;
+      const r=await fetch(SB_URL+'/rest/v1/albums?select=*&order=artist.asc',{
+        headers:{...SBH,'Range-Unit':'items','Range':start+'-'+end}
+      });
+      if(!r.ok) throw new Error(await r.text());
+      const page=await r.json();
+      if(!Array.isArray(page)||page.length===0) break;
+      all=all.concat(page);
+      if(page.length<pageSize) break;
+      start+=pageSize;
+      showSync('Chargement… '+all.length,Math.min(90,all.length/25));
     }
-    albums = all;
-    setSyncStatus('✓ Synchronisé ('+albums.length+' albums)');
+    albums=all;
+    setSyncStatus('✓ '+albums.length+' albums');
   }catch(e){
     setSyncStatus('⚠️ Hors ligne');
-    albums = JSON.parse(localStorage.getItem('disco_backup')||'[]');
+    albums=JSON.parse(localStorage.getItem('disco_backup')||'[]');
   }
   hideSync();
   renderFilters(); renderGrid();
