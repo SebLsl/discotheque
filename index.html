@@ -318,10 +318,11 @@ async function sb(path, opts={}){
   if(opts.method==='POST'||opts.method==='PATCH') {
     headers['Prefer'] = opts.method==='POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal';
   }
-  // Add range header to bypass 1000 row limit on GET
+  // Bypass 1000 row default limit on GET
   if(!opts.method || opts.method==='GET') {
     headers['Range-Unit'] = 'items';
-    headers['Range'] = '0-9999';
+    headers['Range'] = '0-4999';
+    headers['Prefer'] = 'count=none';
   }
   const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers});
   if(!r.ok){
@@ -336,7 +337,7 @@ async function sb(path, opts={}){
 async function loadAlbums(){
   showSync('Chargement…',0);
   try{
-    albums = await sb('albums?select=*&order=artist.asc') || [];
+    albums = await sb('albums?select=*&order=artist.asc&limit=5000') || [];
     setSyncStatus('✓ Synchronisé');
   }catch(e){
     setSyncStatus('⚠️ Hors ligne');
@@ -396,20 +397,18 @@ function renderFilters(){
   area.innerHTML=html;
 }
 
+function getAxis(tag){
+  if(TAGS_BUILTIN.style.includes(tag)) return 'style';
+  if(TAGS_BUILTIN.monde.includes(tag)) return 'monde';
+  if(TAGS_BUILTIN.affectif.includes(tag)) return 'affectif';
+  return 'custom';
+}
+
 function toggleFilter(tag){
   showUntaggedOnly=false;
   if(activeFilters.has(tag)){
     activeFilters.delete(tag);
   } else {
-    // Each axis is independent: only one active filter per axis group
-    const styleT=TAGS_BUILTIN.style.includes(tag);
-    const mondeT=TAGS_BUILTIN.monde.includes(tag);
-    const affectifT=TAGS_BUILTIN.affectif.includes(tag);
-    // Remove other filters from same axis
-    if(styleT) TAGS_BUILTIN.style.forEach(t=>activeFilters.delete(t));
-    else if(mondeT) TAGS_BUILTIN.monde.forEach(t=>activeFilters.delete(t));
-    else if(affectifT) TAGS_BUILTIN.affectif.forEach(t=>activeFilters.delete(t));
-    else customTags.forEach(t=>activeFilters.delete(t));
     activeFilters.add(tag);
   }
   renderFilters();renderGrid();
@@ -423,8 +422,16 @@ function getFiltered(){
   return albums.filter(a=>{
     if(q&&!a.artist.toLowerCase().includes(q)&&!a.album.toLowerCase().includes(q)) return false;
     if(showUntaggedOnly) return !a.tags||!a.tags.length;
-    if(activeFilters.size) return [...activeFilters].every(f=>(a.tags||[]).includes(f));
-    return true;
+    if(!activeFilters.size) return true;
+    // Group active filters by axis
+    const axes={style:[],monde:[],affectif:[],custom:[]};
+    activeFilters.forEach(f=>axes[getAxis(f)].push(f));
+    const atags=a.tags||[];
+    // Within each axis: OR (album must match at least one)
+    // Between axes: AND (album must satisfy all active axes)
+    return Object.values(axes).every(group=>
+      group.length===0 || group.some(f=>atags.includes(f))
+    );
   });
 }
 
@@ -526,12 +533,32 @@ function openAlbum(id){
 
 function ptToggle(tag){
   const idx=pendingTags.indexOf(tag);
-  if(idx>=0)pendingTags.splice(idx,1);else pendingTags.push(tag);
-  document.querySelectorAll('#albumSheet .ttoggle').forEach(el=>{
-    if(el.dataset.tag===tag) el.classList.toggle('on', pendingTags.includes(tag));
+  if(idx>=0) pendingTags.splice(idx,1); else pendingTags.push(tag);
+  ['Style','Monde','Affectif'].forEach(sec=>{
+    const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
+    const el=document.getElementById('sheet'+sec);
+    el.innerHTML='';
+    TAGS_BUILTIN[key].forEach(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      const d=document.createElement('div');
+      d.className='ttoggle'+(pendingTags.includes(t)?' on':'');
+      d.textContent=s;
+      d.dataset.tag=t;
+      d.onclick=()=>ptToggle(t);
+      el.appendChild(d);
+    });
+  });
+  const cel=document.getElementById('sheetCustom');
+  cel.innerHTML='';
+  customTags.forEach(t=>{
+    const d=document.createElement('div');
+    d.className='ttoggle custom'+(pendingTags.includes(t)?' on':'');
+    d.textContent=t;
+    d.dataset.tag=t;
+    d.onclick=()=>ptToggle(t);
+    cel.appendChild(d);
   });
 }
-
 function addCustomTag(){
   const inp=document.getElementById('newTagInput');
   const val=inp.value.trim();if(!val)return;
@@ -544,9 +571,16 @@ function addCustomTag(){
 
 function renderCustomToggles(containerId,activeTags,onToggle){
   const el=document.getElementById(containerId);
-  el.innerHTML=customTags.map(t=>`<div class="ttoggle custom ${activeTags.includes(t)?'on':''}" onclick='${onToggle.name}(${JSON.stringify(t)})' data-tag='${escAttr(t)}'>${t}</div>`).join('');
+  el.innerHTML='';
+  customTags.forEach(t=>{
+    const d=document.createElement('div');
+    d.className='ttoggle custom'+(activeTags.includes(t)?' on':'');
+    d.textContent=t;
+    d.dataset.tag=t;
+    d.onclick=()=>onToggle(t);
+    el.appendChild(d);
+  });
 }
-
 async function saveAlbum(){
   const a=albums.find(x=>x.id===currentId);if(!a)return;
   const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='…';
@@ -777,7 +811,7 @@ function renderTagsManager(){
       <span id="tagLabel_${i}" style="flex:1;font-size:0.85rem;color:#f0ede8">${t}</span>
       <input id="tagEdit_${i}" type="text" value="${t}" style="flex:1;display:none;background:#1e1e21;border:1px solid #c8a96e;border-radius:6px;padding:5px 8px;color:#f0ede8;font-size:0.82rem;outline:none">
       <button class="hbtn" style="padding:4px 10px;font-size:0.72rem" onclick="startEditTag(${i})">✏️</button>
-      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem" onclick="saveEditTag(${i})" id="saveTagBtn_${i}" style="display:none">✓</button>
+      <button class="hbtn primary" id="saveTagBtn_${i}" style="padding:4px 10px;font-size:0.72rem;display:none" onclick="saveEditTag(${i})">✓</button>
       <button class="hbtn" style="padding:4px 10px;font-size:0.72rem;color:#e05a5a;border-color:#e05a5a44" onclick="deleteGlobalTag(${i})">✕</button>
     </div>`).join('');
 }
