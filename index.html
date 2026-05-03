@@ -377,25 +377,61 @@ function updateStats(){
 // ── FILTERS ──────────────────────────────────────────────
 function renderFilters(){
   const area=document.getElementById('tagFilterArea');
-  const groups=[{label:'Style',key:'style'},{label:'Musiques du monde',key:'monde'},{label:'Affectif',key:'affectif'}];
-  let html=groups.map(g=>`
-    <div>
-      <div class="tg-label">${g.label}</div>
-      <div class="tag-scroll">
-        <div class="tchip ${!activeFilters.size&&!showUntaggedOnly?'active':''}" onclick="clearFilters()">Tous</div>
-        ${TAGS_BUILTIN[g.key].map(t=>{
-          const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
-          return `<div class="tchip ${activeFilters.has(t)?'active':''}" onclick='toggleFilter(${JSON.stringify(t)})'>${s}</div>`;
-        }).join('')}
-      </div>
-    </div>`).join('');
-  if(customTags.length){
-    html+=`<div><div class="tg-label">Tags personnalisés</div><div class="tag-scroll">
-      ${customTags.map(t=>`<div class="tchip custom ${activeFilters.has(t)?'active':''}" onclick='toggleFilter(${JSON.stringify(t)})'>${t}</div>`).join('')}
-    </div></div>`;
-  }
-  area.innerHTML=html;
+  area.innerHTML='';
+
+  // Each group has its own "Tous" — active only if no filter active in THAT group
+  const groups=[
+    {label:'Style',key:'style',tags:TAGS_BUILTIN.style},
+    {label:'Musiques du monde',key:'monde',tags:TAGS_BUILTIN.monde},
+    {label:'Affectif',key:'affectif',tags:TAGS_BUILTIN.affectif}
+  ];
+  if(customTags.length) groups.push({label:'Tags personnalisés',key:'custom',tags:customTags});
+
+  groups.forEach(g=>{
+    // Is any tag from THIS group active?
+    const groupHasActive = g.tags.some(t=>activeFilters.has(t));
+    const wrap=document.createElement('div');
+    const lbl=document.createElement('div');
+    lbl.className='tg-label'; lbl.textContent=g.label;
+    wrap.appendChild(lbl);
+    const scroll=document.createElement('div');
+    scroll.className='tag-scroll';
+    // "Tous" for this group — active when no filter in this group
+    const all=document.createElement('div');
+    all.className='tchip all'+(!groupHasActive&&!showUntaggedOnly?' active':'');
+    all.textContent='Tous';
+    all.dataset.action='clear-group';
+    all.dataset.group=g.key;
+    scroll.appendChild(all);
+    g.tags.forEach(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      const d=document.createElement('div');
+      d.className='tchip'+(g.key==='custom'?' custom':'')+(activeFilters.has(t)?' active':'');
+      d.textContent=s;
+      d.dataset.tag=t;
+      scroll.appendChild(d);
+    });
+    wrap.appendChild(scroll);
+    area.appendChild(wrap);
+  });
 }
+
+// Event delegation for filter chips - one listener, no inline onclick
+document.addEventListener('click', function(e){
+  const chip=e.target.closest('.tchip');
+  if(!chip||!chip.closest('#tagFilterArea')) return;
+  if(chip.dataset.action==='clear'){ clearFilters(); return; }
+  if(chip.dataset.action==='clear-group'){
+    // Clear only filters from this group
+    const groupTags = chip.dataset.group==='custom' ? customTags :
+      (TAGS_BUILTIN[chip.dataset.group]||[]);
+    groupTags.forEach(t=>activeFilters.delete(t));
+    showUntaggedOnly=false;
+    renderFilters(); renderGrid();
+    return;
+  }
+  if(chip.dataset.tag){ toggleFilter(chip.dataset.tag); }
+});
 
 function getAxis(tag){
   if(TAGS_BUILTIN.style.includes(tag)) return 'style';
@@ -518,15 +554,22 @@ function openAlbum(id){
   // Support
   renderSupportBtns('sheetSupport', pendingSupport, (sup)=>{pendingSupport=sup;});
 
-  // Tags
+  // Tags - use data-tag, event delegation handles clicks
   ['Style','Monde','Affectif'].forEach(sec=>{
     const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
-    document.getElementById('sheet'+sec).innerHTML=TAGS_BUILTIN[key].map(t=>{
+    const el=document.getElementById('sheet'+sec);
+    el.innerHTML='';
+    TAGS_BUILTIN[key].forEach(t=>{
       const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
-      return `<div class="ttoggle ${pendingTags.includes(t)?'on':''}" onclick='ptToggle(${JSON.stringify(t)})' data-tag='${escAttr(t)}'>${s}</div>`;
-    }).join('');
+      const d=document.createElement('div');
+      d.className='ttoggle'+(pendingTags.includes(t)?' on':'');
+      d.dataset.tag=t;
+      d.dataset.sheet='album';
+      d.textContent=s;
+      el.appendChild(d);
+    });
   });
-  renderCustomToggles('sheetCustom',pendingTags,(t)=>ptToggle(t));
+  renderCustomToggles('sheetCustom',pendingTags);
   document.getElementById('newTagInput').value='';
   document.getElementById('albumSheet').classList.add('open');
 }
@@ -569,7 +612,7 @@ function addCustomTag(){
   renderFilters();
 }
 
-function renderCustomToggles(containerId,activeTags,onToggle){
+function renderCustomToggles(containerId,activeTags){
   const el=document.getElementById(containerId);
   el.innerHTML='';
   customTags.forEach(t=>{
@@ -577,7 +620,7 @@ function renderCustomToggles(containerId,activeTags,onToggle){
     d.className='ttoggle custom'+(activeTags.includes(t)?' on':'');
     d.textContent=t;
     d.dataset.tag=t;
-    d.onclick=()=>onToggle(t);
+    d.dataset.sheet=containerId.startsWith('bulk')?'bulk':'album';
     el.appendChild(d);
   });
 }
@@ -621,14 +664,18 @@ function openBulkTag(){
   document.getElementById('bulkInfo').textContent=`${selectedIds.size} album(s) sélectionné(s). Les tags cochés seront ajoutés à tous.`;
   ['Style','Monde','Affectif'].forEach(sec=>{
     const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
-    document.getElementById('bulk'+sec).innerHTML=TAGS_BUILTIN[key].map(t=>{
+    const el=document.getElementById('bulk'+sec);
+    el.innerHTML='';
+    TAGS_BUILTIN[key].forEach(t=>{
       const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
-      return `<div class="ttoggle" onclick='btToggle(${JSON.stringify(t)})' data-tag='${escAttr(t)}'>${s}</div>`;
-    }).join('');
+      const d=document.createElement('div');
+      d.className='ttoggle';
+      d.dataset.tag=t;
+      d.textContent=s;
+      el.appendChild(d);
+    });
   });
-  document.getElementById('bulkCustom').innerHTML=customTags.map(t=>
-    `<div class="ttoggle custom" onclick='btToggle(${JSON.stringify(t)})' data-tag='${escAttr(t)}'>${t}</div>`
-  ).join('');
+  renderCustomToggles('bulkCustom', bulkPendingTags);
   document.getElementById('bulkNewTagInput').value='';
   document.getElementById('bulkSheet').classList.add('open');
 }
@@ -636,7 +683,10 @@ function openBulkTag(){
 function btToggle(tag){
   const idx=bulkPendingTags.indexOf(tag);
   if(idx>=0)bulkPendingTags.splice(idx,1);else bulkPendingTags.push(tag);
-  document.querySelectorAll('#bulkSheet .ttoggle').forEach(el=>{if(el.dataset.tag===tag)el.classList.toggle('on');});
+  // Update visual state directly on element
+  document.querySelectorAll('#bulkSheet .ttoggle').forEach(el=>{
+    if(el.dataset.tag===tag) el.classList.toggle('on', bulkPendingTags.includes(tag));
+  });
 }
 
 function addBulkCustomTag(){
@@ -872,6 +922,14 @@ function addGlobalTag(){
   renderTagsManager();
   renderFilters();
 }
+
+// Event delegation for album sheet toggles
+document.addEventListener('click', function(e){
+  const tog=e.target.closest('.ttoggle');
+  if(!tog||!tog.dataset.tag) return;
+  if(tog.closest('#albumSheet')){ ptToggle(tog.dataset.tag); return; }
+  if(tog.closest('#bulkSheet')){ btToggle(tog.dataset.tag); return; }
+});
 loadAlbums();
 </script>
 
