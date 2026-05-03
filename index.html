@@ -315,19 +315,14 @@ let bulkPendingTags = [];
 // ── SUPABASE ─────────────────────────────────────────────
 async function sb(path, opts={}){
   const headers = {...SBH,...(opts.headers||{})};
-  if(opts.method==='POST'||opts.method==='PATCH') {
-    headers['Prefer'] = opts.method==='POST' ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal';
-  }
-  // Bypass 1000 row default limit on GET
-  if(!opts.method || opts.method==='GET') {
-    headers['Range-Unit'] = 'items';
-    headers['Range'] = '0-4999';
-    headers['Prefer'] = 'count=none';
+  if(opts.method==='POST') {
+    headers['Prefer'] = (opts.headers&&opts.headers['Prefer']) || 'resolution=merge-duplicates,return=minimal';
+  } else if(opts.method==='PATCH') {
+    headers['Prefer'] = 'return=minimal';
   }
   const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers});
   if(!r.ok){
     const txt = await r.text();
-    console.error('Supabase error:', r.status, txt);
     throw new Error(txt);
   }
   if(r.status===204||r.status===201) return null;
@@ -447,7 +442,25 @@ function toggleFilter(tag){
   } else {
     activeFilters.add(tag);
   }
-  renderFilters();renderGrid();
+  // Update chip classes in-place
+  document.querySelectorAll('#tagFilterArea .tchip[data-tag]').forEach(chip=>{
+    if(activeFilters.has(chip.dataset.tag)){
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+  // Update each "Tous" chip independently per group
+  document.querySelectorAll('#tagFilterArea .tchip[data-group]').forEach(chip=>{
+    const groupTags = chip.dataset.group==='custom' ? customTags : (TAGS_BUILTIN[chip.dataset.group]||[]);
+    const groupHasActive = groupTags.some(t=>activeFilters.has(t));
+    if(groupHasActive || showUntaggedOnly){
+      chip.classList.remove('active');
+    } else {
+      chip.classList.add('active');
+    }
+  });
+  renderGrid();
 }
 function clearFilters(){activeFilters.clear();showUntaggedOnly=false;renderFilters();renderGrid();}
 function filterUntagged(){showUntaggedOnly=!showUntaggedOnly;activeFilters.clear();renderFilters();renderGrid();}
@@ -852,18 +865,41 @@ function openTagsManager(){
 
 function renderTagsManager(){
   const el=document.getElementById('tagsManagerList');
+  el.innerHTML='';
   if(!customTags.length){
-    el.innerHTML='<p style="font-size:0.82rem;color:#5a5652;text-align:center;padding:20px">Aucun tag personnalisé</p>';
+    const p=document.createElement('p');
+    p.style.cssText='font-size:0.82rem;color:#5a5652;text-align:center;padding:20px';
+    p.textContent='Aucun tag personnalisé';
+    el.appendChild(p);
     return;
   }
-  el.innerHTML=customTags.map((t,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2a2a2e">
-      <span id="tagLabel_${i}" style="flex:1;font-size:0.85rem;color:#f0ede8">${t}</span>
-      <input id="tagEdit_${i}" type="text" value="${t}" style="flex:1;display:none;background:#1e1e21;border:1px solid #c8a96e;border-radius:6px;padding:5px 8px;color:#f0ede8;font-size:0.82rem;outline:none">
-      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem" onclick="startEditTag(${i})">✏️</button>
-      <button class="hbtn primary" id="saveTagBtn_${i}" style="padding:4px 10px;font-size:0.72rem;display:none" onclick="saveEditTag(${i})">✓</button>
-      <button class="hbtn" style="padding:4px 10px;font-size:0.72rem;color:#e05a5a;border-color:#e05a5a44" onclick="deleteGlobalTag(${i})">✕</button>
-    </div>`).join('');
+  customTags.forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2a2a2e';
+    const lbl=document.createElement('span');
+    lbl.id='tagLabel_'+i;
+    lbl.style.cssText='flex:1;font-size:0.85rem;color:#f0ede8';
+    lbl.textContent=t;
+    const inp=document.createElement('input');
+    inp.type='text'; inp.id='tagEdit_'+i; inp.value=t;
+    inp.style.cssText='flex:1;display:none;background:#1e1e21;border:1px solid #c8a96e;border-radius:6px;padding:5px 8px;color:#f0ede8;font-size:0.82rem;outline:none';
+    inp.onkeydown=(e)=>{if(e.key==='Enter')saveEditTag(i);};
+    const btnEdit=document.createElement('button');
+    btnEdit.className='hbtn'; btnEdit.textContent='✏️';
+    btnEdit.style.cssText='padding:4px 10px;font-size:0.72rem';
+    btnEdit.onclick=()=>startEditTag(i);
+    const btnSave=document.createElement('button');
+    btnSave.className='hbtn primary'; btnSave.id='saveTagBtn_'+i; btnSave.textContent='✓';
+    btnSave.style.cssText='padding:4px 10px;font-size:0.72rem;display:none';
+    btnSave.onclick=()=>saveEditTag(i);
+    const btnDel=document.createElement('button');
+    btnDel.className='hbtn'; btnDel.textContent='✕';
+    btnDel.style.cssText='padding:4px 10px;font-size:0.72rem;color:#e05a5a;border-color:#e05a5a44';
+    btnDel.onclick=()=>deleteGlobalTag(i);
+    row.appendChild(lbl); row.appendChild(inp);
+    row.appendChild(btnEdit); row.appendChild(btnSave); row.appendChild(btnDel);
+    el.appendChild(row);
+  });
 }
 
 function startEditTag(i){
