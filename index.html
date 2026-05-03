@@ -48,9 +48,10 @@ header h1 span{font-style:italic}
 .tg-label{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.12em;color:#5a5652;font-weight:500}
 .tag-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
 .tag-scroll::-webkit-scrollbar{display:none}
-.tchip{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:4px 11px;font-size:0.76rem;cursor:pointer;white-space:nowrap;transition:all 0.15s;flex-shrink:0}
+.tchip{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:4px 11px;font-size:0.76rem;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0}
 .tchip:hover{border-color:#c8a96e;color:#c8a96e}
-.tchip.active{background:#c8a96e18;border-color:#c8a96e;color:#c8a96e}
+.tchip.active{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
+.tchip:not(.active){border-color:#2a2a2e !important;color:#9a9690 !important}
 .tchip.custom{border-style:dashed}
 
 /* SELECTION BAR */
@@ -96,9 +97,10 @@ header h1 span{font-style:italic}
 .sheet-title{font-family:‘Playfair Display’,serif;font-size:1.05rem;color:#e8c98e;margin-bottom:14px}
 .msec{font-size:0.67rem;text-transform:uppercase;letter-spacing:0.1em;color:#5a5652;margin:16px 0 9px}
 .tgrid{display:flex;flex-wrap:wrap;gap:7px}
-.ttoggle{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:5px 13px;font-size:0.78rem;cursor:pointer;transition:all 0.15s}
+.ttoggle{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:5px 13px;font-size:0.78rem;cursor:pointer;transition:background 0.15s}
 .ttoggle:hover{border-color:#c8a96e;color:#c8a96e}
-.ttoggle.on{background:#c8a96e18;border-color:#c8a96e;color:#c8a96e}
+.ttoggle.on{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
+.ttoggle:not(.on){border-color:#2a2a2e !important;color:#9a9690 !important}
 .ttoggle.custom{border-style:dashed}
 .mrow{display:flex;gap:9px;margin-top:20px}
 .mrow .hbtn{flex:1;text-align:center;padding:11px}
