@@ -659,7 +659,7 @@ async function doImport(){
   const btn=document.getElementById('importBtn');btn.disabled=true;
   const newAlbums=result.rows
     .filter(r=>!albums.some(a=>a.artist.toLowerCase()===r.artist.toLowerCase()&&a.album.toLowerCase()===r.album.toLowerCase()))
-    .map(r=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2),artist:r.artist,album:r.album,tags:[],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
+    .map(r=>({artist:r.artist,album:r.album,tags:[],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
   let added=0;
   if(newAlbums.length){
     const CHUNK=100;
@@ -694,10 +694,13 @@ async function doAddAlbum(){
   const album=document.getElementById('addAlbum').value.trim();
   if(!artist||!album)return;
   if(albums.some(a=>a.artist.toLowerCase()===artist.toLowerCase()&&a.album.toLowerCase()===album.toLowerCase())){alert('Album déjà présent.');return;}
-  const n={id:Date.now().toString(36)+Math.random().toString(36).slice(2),artist,album,tags:[],support:{...addSupportState},cover_url:null,album_link:null,artist_link:null};
-  try{await sb('albums',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(n)});albums.push(n);backup();}
-  catch(e){
-    setSyncStatus('⚠️ '+e.message.substring(0,80));
+  const n={artist,album,tags:[],support:{...addSupportState},cover_url:null,album_link:null,artist_link:null};
+  try{
+    const res = await sb('albums',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(n)});
+    const saved = (Array.isArray(res)&&res[0]) ? res[0] : n;
+    albums.push(saved); backup();
+  }catch(e){
+    setSyncStatus('⚠️ Erreur sync');
     alert('Erreur: '+e.message.substring(0,200));
   }
   closeSheet('addSheet');renderFilters();renderGrid();
