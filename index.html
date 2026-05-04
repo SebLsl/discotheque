@@ -514,6 +514,7 @@ function buildCard(a){
     // Build card with createElement to avoid template literal conflicts
     const card=document.createElement('div');
     card.className='acard'+(untagged?' untagged':'')+(selectedIds.has(a.id)?' selected':'');
+    card.dataset.id=a.id;
     card.onclick=()=>cardClick(a.id);
     const cover=document.createElement('div');
     cover.className='acover';
@@ -566,7 +567,7 @@ function cardClick(id){
 
 // ── ALBUM SHEET ──────────────────────────────────────────
 function openAlbum(id){
-  const a=albums.find(x=>x.id===id);if(!a)return;
+  const a=albums.find(x=>String(x.id)===String(id));if(!a)return;
   currentId=id;
   pendingTags=[...(a.tags||[])];
   pendingSupport={...({qobuz:true,...(a.support||{})})};
@@ -774,7 +775,7 @@ async function doImport(){
       showSync('Import…',Math.round(i/newAlbums.length*100));
       document.getElementById('syncLabel').textContent=`Import… ${Math.min(i+CHUNK,newAlbums.length)}/${newAlbums.length}`;
       try{
-        await sb('albums',{method:'POST',headers:{'Prefer':'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(chunk)});
+        await fetch(SB_URL+'/rest/v1/albums',{method:'POST',headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(chunk)});
         albums.push(...chunk);added+=chunk.length;
       }catch(e){console.error('Import chunk error:',e.message);setSyncStatus('⚠️ '+e.message.substring(0,50));}
     }
@@ -967,6 +968,16 @@ document.addEventListener('click', function(e){
   if(!tog||!tog.dataset.tag) return;
   if(tog.closest('#albumSheet')){ ptToggle(tog.dataset.tag); return; }
   if(tog.closest('#bulkSheet')){ btToggle(tog.dataset.tag); return; }
+});
+
+// Event delegation for card clicks (backup for iOS)
+document.addEventListener('click', function(e){
+  if(e.target.closest('.qobuz-btn')) return; // handled by link
+  if(e.target.closest('.tchip')) return; // handled by filter listener
+  if(e.target.closest('.ttoggle')) return; // handled by toggle listener
+  const card=e.target.closest('.acard');
+  if(!card||!card.dataset.id) return;
+  cardClick(card.dataset.id);
 });
 loadAlbums();
 </script>
