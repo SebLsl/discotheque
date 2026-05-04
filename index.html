@@ -567,7 +567,8 @@ function cardClick(id){
 
 // ── ALBUM SHEET ──────────────────────────────────────────
 function openAlbum(id){
-  const a=albums.find(x=>String(x.id)===String(id));if(!a)return;
+  const a=albums.find(x=>String(x.id)===String(id));
+  if(!a){ setSyncStatus('ID '+String(id)+' non trouvé ('+albums.length+' albums)'); return; }
   currentId=String(id);
   pendingTags=[...(a.tags||[])];
   pendingSupport={...({qobuz:true,...(a.support||{})})};
@@ -763,8 +764,12 @@ async function doImport(){
   const result=parseImport(text);
   if(!result){alert('Format non reconnu.\nJSON attendu : [{"artist":"…","title":"…"}]\nCSV : colonnes Artist et Album');return;}
   const btn=document.getElementById('importBtn');btn.disabled=true;
-  // Client-side dedup: only insert albums not already in local cache
-  const existingKeys=new Set(albums.map(a=>a.artist.toLowerCase().trim()+'||'+a.album.toLowerCase().trim()));
+  // Dedup: fetch all existing artist+album from DB for accurate comparison
+  let existingData = albums;
+  if(existingData.length === 0){
+    try{ existingData = await sb('albums?select=artist,album&limit=5000') || []; }catch(e){}
+  }
+  const existingKeys=new Set(existingData.map(a=>a.artist.toLowerCase().trim()+'||'+a.album.toLowerCase().trim()));
   const newAlbums=result.rows
     .filter(r=>!existingKeys.has(r.artist.toLowerCase().trim()+'||'+r.album.toLowerCase().trim()))
     .map(r=>({artist:r.artist,album:r.album,tags:['Découvertes récentes'],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
