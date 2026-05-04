@@ -434,8 +434,6 @@ function renderFilters(){
 document.addEventListener('click', function(e){
   const chip=e.target.closest('.tchip');
   if(!chip||!chip.closest('#tagFilterArea')) return;
-  e.preventDefault();
-  e.stopPropagation();
   if(chip.dataset.action==='clear'){ clearFilters(); return; }
   if(chip.dataset.action==='clear-group'){
     const groupTags = chip.dataset.group==='custom' ? customTags :
@@ -446,7 +444,7 @@ document.addEventListener('click', function(e){
     return;
   }
   if(chip.dataset.tag){ toggleFilter(chip.dataset.tag); }
-}, {capture: true});
+});
 
 function getAxis(tag){
   if(TAGS_BUILTIN.style.includes(tag)) return 'style';
@@ -778,7 +776,7 @@ async function doImport(){
       try{
         await sb('albums',{method:'POST',headers:{'Prefer':'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(chunk)});
         albums.push(...chunk);added+=chunk.length;
-      }catch(e){setSyncStatus('⚠️ Erreur sync');}
+      }catch(e){console.error('Import chunk error:',e.message);setSyncStatus('⚠️ '+e.message.substring(0,50));}
     }
     backup();
   }
