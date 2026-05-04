@@ -495,7 +495,13 @@ function renderGrid(){
   const empty=document.getElementById('emptyState');
   if(!filtered.length){grid.style.display='none';empty.style.display='block';return;}
   grid.style.display='grid';empty.style.display='none';
-  grid.innerHTML=filtered.map(a=>{
+  grid.innerHTML='';
+  filtered.forEach(a=>{
+    grid.appendChild(buildCard(a));
+  });
+}
+
+function buildCard(a){
     const untagged=!a.tags||!a.tags.length;
     const sup=a.support||{qobuz:true};
     const tags=(a.tags||[]).slice(0,2).map(t=>{
@@ -507,21 +513,30 @@ function renderGrid(){
       sup.vinyl?'<span class="sbadge vinyl">VINYL</span>':'',
       sup.cd?'<span class="sbadge cd">CD</span>':''
     ].join('');
-    const qlink = a.album_link ? `<a class="qobuz-btn" href="${a.album_link}" target="_blank" onclick="event.stopPropagation()">▶</a>` : '';
-    return `<div class="acard ${untagged?'untagged':''} ${selectedIds.has(a.id)?'selected':''}" onclick="cardClick(${JSON.stringify(a.id)})">
-      <div class="acover">
-        ${a.cover_url?`<img src="${a.cover_url}" alt="" loading="lazy">`:'<span class="nocover">♪</span>'}
-        ${untagged&&!selectMode?'<div class="untagged-dot"></div>':''}
-        <div class="support-badges">${badges}</div>
-        ${qlink}
-      </div>
-      <div class="ainfo">
-        <div class="atitle">${a.album}</div>
-        <div class="aartist">${a.artist}</div>
-        ${tags?`<div class="atags">${tags}</div>`:''}
-      </div>
-    </div>`;
-  }).join('');
+    // Build card with createElement to avoid template literal conflicts
+    const card=document.createElement('div');
+    card.className='acard'+(untagged?' untagged':'')+(selectedIds.has(a.id)?' selected':'');
+    card.onclick=()=>cardClick(a.id);
+    const cover=document.createElement('div');
+    cover.className='acover';
+    if(a.cover_url){const img=document.createElement('img');img.src=a.cover_url;img.alt='';img.loading='lazy';cover.appendChild(img);}
+    else{const nc=document.createElement('span');nc.className='nocover';nc.textContent='♪';cover.appendChild(nc);}
+    if(untagged&&!selectMode){const dot=document.createElement('div');dot.className='untagged-dot';cover.appendChild(dot);}
+    const sb_div=document.createElement('div');sb_div.className='support-badges';sb_div.innerHTML=badges;cover.appendChild(sb_div);
+    if(a.album_link){
+      const qbtn=document.createElement('a');
+      qbtn.className='qobuz-btn';qbtn.href=a.album_link;qbtn.target='_blank';qbtn.textContent='▶';
+      qbtn.onclick=(e)=>e.stopPropagation();
+      cover.appendChild(qbtn);
+    }
+    card.appendChild(cover);
+    const info=document.createElement('div');info.className='ainfo';
+    const title=document.createElement('div');title.className='atitle';title.textContent=a.album;
+    const artist=document.createElement('div');artist.className='aartist';artist.textContent=a.artist;
+    info.appendChild(title);info.appendChild(artist);
+    if(tags){const tagsDiv=document.createElement('div');tagsDiv.className='atags';tagsDiv.innerHTML=tags;info.appendChild(tagsDiv);}
+    card.appendChild(info);
+    return card;
 }
 
 // ── SELECT MODE ──────────────────────────────────────────
@@ -749,8 +764,9 @@ async function doImport(){
   const result=parseImport(text);
   if(!result){alert('Format non reconnu.\nJSON attendu : [{"artist":"…","title":"…"}]\nCSV : colonnes Artist et Album');return;}
   const btn=document.getElementById('importBtn');btn.disabled=true;
+  // Let Supabase handle deduplication via unique index (ignore-duplicates)
+  // No client-side filter needed
   const newAlbums=result.rows
-    .filter(r=>!albums.some(a=>a.artist.toLowerCase()===r.artist.toLowerCase()&&a.album.toLowerCase()===r.album.toLowerCase()))
     .map(r=>({artist:r.artist,album:r.album,tags:['Découvertes récentes'],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
   let added=0;
   if(newAlbums.length){
