@@ -68,7 +68,9 @@ header h1 span{font-style:italic}
 @media(max-width:480px){.album-grid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px}}
 
 /* ALBUM CARD */
-.acard{background:#161618;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;border:1.5px solid #2a2a2e;position:relative;user-select:none}
+.acard{background:#161618;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;border:1.5px solid #2a2a2e;position:relative;user-select:none;-webkit-tap-highlight-color:rgba(200,169,110,0.2)}
+.acard *{pointer-events:none}
+.acard .qobuz-btn{pointer-events:auto}
 .acard:hover{transform:translateY(-2px);box-shadow:0 6px 20px #0008}
 .acard.untagged{border-color:#c8a96e}
 .acard.selected{border-color:#e8c98e;box-shadow:0 0 0 2px #e8c98e}
@@ -976,15 +978,25 @@ document.addEventListener('click', function(e){
   if(tog.closest('#bulkSheet')){ btToggle(tog.dataset.tag); return; }
 });
 
-// Event delegation for card clicks
-document.addEventListener('click', function(e){
+// Event delegation for card clicks - use both click and touchend for iOS
+function handleCardClick(e){
   if(e.target.closest('.qobuz-btn')) return;
   if(e.target.closest('.tchip')) return;
   if(e.target.closest('.ttoggle')) return;
   const card=e.target.closest('.acard');
-  if(!card) return;
-  const id=card.dataset.id;
-  if(id) cardClick(id);
+  if(!card||!card.dataset.id) return;
+  e.preventDefault();
+  cardClick(card.dataset.id);
+}
+document.addEventListener('click', handleCardClick);
+document.addEventListener('touchend', function(e){
+  if(e.target.closest('.qobuz-btn')) return;
+  if(e.target.closest('.tchip')) return;
+  if(e.target.closest('.ttoggle')) return;
+  const card=e.target.closest('.acard');
+  if(!card||!card.dataset.id) return;
+  e.preventDefault();
+  cardClick(card.dataset.id);
 });
 loadAlbums();
 </script>
