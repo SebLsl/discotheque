@@ -77,6 +77,8 @@ header h1 span{font-style:italic}
 .acover img{width:100%;height:100%;object-fit:cover;display:block}
 .acover .nocover{font-family:‘Playfair Display’,serif;font-size:1.8rem;color:#5a5652}
 .untagged-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#c8a96e;box-shadow:0 0 5px #c8a96e}
+.qobuz-btn{position:absolute;bottom:4px;right:4px;background:#1a1a2ecc;color:#6eb5ff;border:1px solid #6eb5ff55;border-radius:6px;padding:2px 7px;font-size:0.7rem;text-decoration:none;z-index:2;transition:all 0.15s}
+.qobuz-btn:hover{background:#6eb5ff;color:#0e0e0f}
 /* SUPPORT BADGES */
 .support-badges{position:absolute;bottom:4px;left:4px;display:flex;gap:3px}
 .sbadge{font-size:0.56rem;font-weight:700;padding:2px 5px;border-radius:5px;letter-spacing:0.03em;line-height:1.2}
@@ -505,11 +507,13 @@ function renderGrid(){
       sup.vinyl?'<span class="sbadge vinyl">VINYL</span>':'',
       sup.cd?'<span class="sbadge cd">CD</span>':''
     ].join('');
+    const qlink = a.album_link ? `<a class="qobuz-btn" href="${a.album_link}" target="_blank" onclick="event.stopPropagation()">▶</a>` : '';
     return `<div class="acard ${untagged?'untagged':''} ${selectedIds.has(a.id)?'selected':''}" onclick="cardClick(${JSON.stringify(a.id)})">
       <div class="acover">
         ${a.cover_url?`<img src="${a.cover_url}" alt="" loading="lazy">`:'<span class="nocover">♪</span>'}
         ${untagged&&!selectMode?'<div class="untagged-dot"></div>':''}
         <div class="support-badges">${badges}</div>
+        ${qlink}
       </div>
       <div class="ainfo">
         <div class="atitle">${a.album}</div>
@@ -747,7 +751,7 @@ async function doImport(){
   const btn=document.getElementById('importBtn');btn.disabled=true;
   const newAlbums=result.rows
     .filter(r=>!albums.some(a=>a.artist.toLowerCase()===r.artist.toLowerCase()&&a.album.toLowerCase()===r.album.toLowerCase()))
-    .map(r=>({artist:r.artist,album:r.album,tags:[],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
+    .map(r=>({artist:r.artist,album:r.album,tags:['Découvertes récentes'],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
   let added=0;
   if(newAlbums.length){
     const CHUNK=100;
@@ -756,7 +760,7 @@ async function doImport(){
       showSync('Import…',Math.round(i/newAlbums.length*100));
       document.getElementById('syncLabel').textContent=`Import… ${Math.min(i+CHUNK,newAlbums.length)}/${newAlbums.length}`;
       try{
-        await sb('albums',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(chunk)});
+        await sb('albums',{method:'POST',headers:{'Prefer':'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(chunk)});
         albums.push(...chunk);added+=chunk.length;
       }catch(e){setSyncStatus('⚠️ Erreur sync');}
     }
@@ -800,7 +804,7 @@ async function doAddAlbum(){
   if(albums.some(a=>a.artist.toLowerCase()===artist.toLowerCase()&&a.album.toLowerCase()===album.toLowerCase())){alert('Album déjà présent.');return;}
   const n={artist,album,tags:[],support:{...addSupportState},cover_url:null,album_link:null,artist_link:null};
   try{
-    const res = await sb('albums',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(n)});
+    const res = await sb('albums',{method:'POST',headers:{'Prefer':'resolution=ignore-duplicates,return=representation'},body:JSON.stringify(n)});
     const saved = (Array.isArray(res)&&res[0]) ? res[0] : n;
     albums.push(saved); backup();
   }catch(e){
