@@ -513,9 +513,8 @@ function buildCard(a){
     ].join('');
     // Build card with createElement to avoid template literal conflicts
     const card=document.createElement('div');
-    card.className='acard'+(untagged?' untagged':'')+(selectedIds.has(a.id)?' selected':'');
-    card.dataset.id=a.id;
-    card.onclick=()=>cardClick(a.id);
+    card.className='acard'+(untagged?' untagged':'')+(selectedIds.has(String(a.id))?' selected':'');
+    card.dataset.id=String(a.id);
     const cover=document.createElement('div');
     cover.className='acover';
     if(a.cover_url){const img=document.createElement('img');img.src=a.cover_url;img.alt='';img.loading='lazy';cover.appendChild(img);}
@@ -556,19 +555,20 @@ function clearSelection(){
 }
 
 function cardClick(id){
+  const sid=String(id);
   if(selectMode){
-    selectedIds.has(id)?selectedIds.delete(id):selectedIds.add(id);
+    selectedIds.has(sid)?selectedIds.delete(sid):selectedIds.add(sid);
     document.getElementById('selectCount').textContent=selectedIds.size+' sélectionné(s)';
     renderGrid();
   } else {
-    openAlbum(id);
+    openAlbum(sid);
   }
 }
 
 // ── ALBUM SHEET ──────────────────────────────────────────
 function openAlbum(id){
   const a=albums.find(x=>String(x.id)===String(id));if(!a)return;
-  currentId=id;
+  currentId=String(id);
   pendingTags=[...(a.tags||[])];
   pendingSupport={...({qobuz:true,...(a.support||{})})};
   document.getElementById('sheetTitle').textContent=a.album;
@@ -763,9 +763,10 @@ async function doImport(){
   const result=parseImport(text);
   if(!result){alert('Format non reconnu.\nJSON attendu : [{"artist":"…","title":"…"}]\nCSV : colonnes Artist et Album');return;}
   const btn=document.getElementById('importBtn');btn.disabled=true;
-  // Let Supabase handle deduplication via unique index (ignore-duplicates)
-  // No client-side filter needed
+  // Client-side dedup: only insert albums not already in local cache
+  const existingKeys=new Set(albums.map(a=>a.artist.toLowerCase().trim()+'||'+a.album.toLowerCase().trim()));
   const newAlbums=result.rows
+    .filter(r=>!existingKeys.has(r.artist.toLowerCase().trim()+'||'+r.album.toLowerCase().trim()))
     .map(r=>({artist:r.artist,album:r.album,tags:['Découvertes récentes'],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
   let added=0;
   if(newAlbums.length){
@@ -775,7 +776,7 @@ async function doImport(){
       showSync('Import…',Math.round(i/newAlbums.length*100));
       document.getElementById('syncLabel').textContent=`Import… ${Math.min(i+CHUNK,newAlbums.length)}/${newAlbums.length}`;
       try{
-        await fetch(SB_URL+'/rest/v1/albums',{method:'POST',headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(chunk)});
+        await sb('albums',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(chunk)});
         albums.push(...chunk);added+=chunk.length;
       }catch(e){console.error('Import chunk error:',e.message);setSyncStatus('⚠️ '+e.message.substring(0,50));}
     }
@@ -970,14 +971,15 @@ document.addEventListener('click', function(e){
   if(tog.closest('#bulkSheet')){ btToggle(tog.dataset.tag); return; }
 });
 
-// Event delegation for card clicks (backup for iOS)
+// Event delegation for card clicks
 document.addEventListener('click', function(e){
-  if(e.target.closest('.qobuz-btn')) return; // handled by link
-  if(e.target.closest('.tchip')) return; // handled by filter listener
-  if(e.target.closest('.ttoggle')) return; // handled by toggle listener
+  if(e.target.closest('.qobuz-btn')) return;
+  if(e.target.closest('.tchip')) return;
+  if(e.target.closest('.ttoggle')) return;
   const card=e.target.closest('.acard');
-  if(!card||!card.dataset.id) return;
-  cardClick(card.dataset.id);
+  if(!card) return;
+  const id=card.dataset.id;
+  if(id) cardClick(id);
 });
 loadAlbums();
 </script>
