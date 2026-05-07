@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ma Discothèque</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#0e0e0f;color:#f0ede8;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* SYNC */
+.sync-bar{position:fixed;bottom:0;left:0;right:0;background:#161618;border-top:1px solid #2a2a2e;padding:10px 20px;display:none;align-items:center;gap:10px;z-index:400;font-size:0.8rem;color:#9a9690}
+.sync-bar.show{display:flex}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#c8a96e;animation:pulse 1s infinite;flex-shrink:0}
+.sync-progress{flex:1;height:4px;background:#2a2a2e;border-radius:2px;overflow:hidden}
+.sync-progress-inner{height:100%;background:#c8a96e;border-radius:2px;transition:width 0.3s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* HEADER */
+header{background:#161618;border-bottom:1px solid #2a2a2e;padding:14px 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:10px}
+header h1{font-family:‘Playfair Display’,serif;font-size:1.3rem;font-weight:400;color:#e8c98e;flex:1;white-space:nowrap}
+header h1 span{font-style:italic}
+.hbtn{background:#1e1e21;border:1px solid #2a2a2e;color:#9a9690;font-family:‘DM Sans’,sans-serif;font-size:0.78rem;padding:7px 12px;border-radius:18px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.hbtn:hover{border-color:#c8a96e;color:#c8a96e}
+.hbtn.primary{background:#c8a96e;color:#0e0e0f;border-color:#c8a96e;font-weight:500}
+.hbtn.primary:hover{background:#e8c98e}
+.hbtn.danger{border-color:#e05a5a44;color:#e05a5a}
+.hbtn:disabled{opacity:0.4;cursor:not-allowed}
+.hbtn.select-mode{background:#a07840;color:#fff;border-color:#a07840}
+
+/* STATS */
+.stats-bar{background:#161618;border-bottom:1px solid #2a2a2e;padding:9px 16px;display:flex;gap:14px;align-items:center;font-size:0.76rem;color:#5a5652;flex-wrap:wrap}
+.stats-bar strong{color:#c8a96e;font-weight:500}
+.badge{border-radius:20px;padding:2px 10px;font-size:0.73rem;cursor:pointer;transition:all 0.2s;border:1px solid #c8a96e;background:#c8a96e18;color:#c8a96e}
+.badge:hover,.badge.active{background:#c8a96e;color:#0e0e0f}
+#syncStatus{margin-left:auto;font-size:0.7rem}
+
+/* SEARCH */
+.search-wrap{padding:12px 16px;background:#0e0e0f;border-bottom:1px solid #2a2a2e}
+.search-wrap input{width:100%;background:#1e1e21;border:1px solid #2a2a2e;border-radius:22px;padding:9px 16px;color:#f0ede8;font-family:‘DM Sans’,sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s}
+.search-wrap input:focus{border-color:#c8a96e}
+.search-wrap input::placeholder{color:#5a5652}
+
+/* TAG FILTER */
+.tag-filter-area{padding:12px 16px 8px;border-bottom:1px solid #2a2a2e;display:flex;flex-direction:column;gap:8px}
+.tg-label{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.12em;color:#5a5652;font-weight:500}
+.tag-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}
+.tag-scroll::-webkit-scrollbar{display:none}
+.tag-scroll.multirow{flex-wrap:wrap;overflow-x:auto;max-height:108px;align-content:flex-start}
+.tchip{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:4px 11px;font-size:0.76rem;cursor:pointer;white-space:nowrap;transition:background 0.15s;flex-shrink:0}
+.tchip:hover{border-color:#c8a96e;color:#c8a96e}
+.tchip.active{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
+.tchip:not(.active){border-color:#2a2a2e !important;color:#9a9690 !important}
+.tchip.custom{border-style:dashed}
+
+/* SELECTION BAR */
+.select-bar{background:#a07840;padding:10px 16px;display:none;align-items:center;gap:10px;position:sticky;top:53px;z-index:99}
+.select-bar.show{display:flex}
+.select-bar span{font-size:0.82rem;font-weight:500;color:#fff;flex:1}
+.select-bar .hbtn{background:#ffffff22;border-color:#ffffff44;color:#fff;font-size:0.76rem;padding:6px 12px}
+.select-bar .hbtn:hover{background:#ffffff33}
+
+/* GRID */
+.grid-wrap{padding:14px 16px 80px}
+.album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:12px}
+@media(max-width:480px){.album-grid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px}}
+
+/* ALBUM CARD */
+.acard{background:#161618;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;border:1.5px solid #2a2a2e;position:relative;user-select:none;-webkit-tap-highlight-color:rgba(200,169,110,0.2)}
+.acard:hover{transform:translateY(-2px);box-shadow:0 6px 20px #0008}
+.acard.untagged{border-color:#c8a96e}
+.acard.selected{border-color:#e8c98e;box-shadow:0 0 0 2px #e8c98e}
+.acard.selected .acover::after{content:‘✓’;position:absolute;inset:0;background:#c8a96eaa;display:flex;align-items:center;justify-content:center;font-size:2rem;color:#fff;font-weight:700}
+.acover{width:100%;aspect-ratio:1;background:#1e1e21;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.acover img{width:100%;height:100%;object-fit:cover;display:block}
+.acover .nocover{font-family:‘Playfair Display’,serif;font-size:1.8rem;color:#5a5652}
+.untagged-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#c8a96e;box-shadow:0 0 5px #c8a96e}
+.qobuz-btn{position:absolute;bottom:4px;right:4px;background:#1a1a2ecc;color:#6eb5ff;border:1px solid #6eb5ff55;border-radius:6px;padding:2px 7px;font-size:0.7rem;text-decoration:none;z-index:2;transition:all 0.15s}
+.qobuz-btn:hover{background:#6eb5ff;color:#0e0e0f}
+/* SUPPORT BADGES */
+.support-badges{position:absolute;bottom:4px;left:4px;display:flex;gap:3px}
+.sbadge{font-size:0.56rem;font-weight:700;padding:2px 5px;border-radius:5px;letter-spacing:0.03em;line-height:1.2}
+.sbadge.qobuz{background:#1a1a2e;color:#6eb5ff;border:1px solid #6eb5ff55}
+.sbadge.vinyl{background:#2e1a1a;color:#ff9966;border:1px solid #ff996655}
+.sbadge.cd{background:#1a2e1a;color:#66ff99;border:1px solid #66ff9955}
+.ainfo{padding:7px 9px}
+.atitle{font-size:0.76rem;font-weight:500;color:#f0ede8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aartist{font-size:0.7rem;color:#9a9690;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.atags{display:flex;flex-wrap:wrap;gap:2px;margin-top:5px}
+.minitag{background:#c8a96e18;border:1px solid #c8a96e33;color:#c8a96e;border-radius:9px;padding:1px 5px;font-size:0.6rem;white-space:nowrap}
+
+/* MODALS */
+.overlay{position:fixed;inset:0;background:#000b;z-index:200;display:none;align-items:flex-end;backdrop-filter:blur(3px)}
+.overlay.open{display:flex}
+.sheet{background:#161618;border-radius:18px 18px 0 0;border-top:1px solid #2a2a2e;width:100%;max-height:92vh;overflow-y:auto;padding:18px 18px 30px;animation:up 0.28s ease}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.handle{width:38px;height:4px;background:#333337;border-radius:2px;margin:0 auto 18px}
+.sheet-title{font-family:‘Playfair Display’,serif;font-size:1.05rem;color:#e8c98e;margin-bottom:14px}
+.msec{font-size:0.67rem;text-transform:uppercase;letter-spacing:0.1em;color:#5a5652;margin:16px 0 9px}
+.tgrid{display:flex;flex-wrap:wrap;gap:7px}
+.ttoggle{background:#252528;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:5px 13px;font-size:0.78rem;cursor:pointer;transition:background 0.15s}
+.ttoggle:hover{border-color:#c8a96e;color:#c8a96e}
+.ttoggle.on{background:#c8a96e18 !important;border-color:#c8a96e !important;color:#c8a96e !important}
+.ttoggle:not(.on){border-color:#2a2a2e !important;color:#9a9690 !important}
+.ttoggle.custom{border-style:dashed}
+.mrow{display:flex;gap:9px;margin-top:20px}
+.mrow .hbtn{flex:1;text-align:center;padding:11px}
+.support-row{display:flex;gap:9px;margin-top:4px}
+.sup-btn{flex:1;padding:10px 6px;border-radius:9px;border:1.5px solid #2a2a2e;background:#1e1e21;cursor:pointer;text-align:center;font-size:0.75rem;transition:all 0.2s;color:#9a9690}
+.sup-btn.on.qobuz{border-color:#6eb5ff;background:#6eb5ff18;color:#6eb5ff}
+.sup-btn.on.vinyl{border-color:#ff9966;background:#ff996618;color:#ff9966}
+.sup-btn.on.cd{border-color:#66ff99;background:#66ff9918;color:#66ff99}
+.link-row{display:flex;gap:9px;margin-top:8px}
+.link-btn{flex:1;padding:9px;border-radius:9px;border:1px solid #2a2a2e;background:#1e1e21;cursor:pointer;text-align:center;font-size:0.76rem;color:#9a9690;text-decoration:none;transition:all 0.2s;display:block}
+.link-btn:hover{border-color:#c8a96e;color:#c8a96e}
+.divider{height:1px;background:#2a2a2e;margin:14px 0}
+.fg{margin-bottom:12px}
+.fg label{font-size:0.72rem;color:#5a5652;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:5px}
+.fg input{width:100%;background:#1e1e21;border:1px solid #2a2a2e;border-radius:8px;padding:9px 13px;color:#f0ede8;font-family:‘DM Sans’,sans-serif;font-size:0.88rem;outline:none;transition:border-color 0.2s}
+.fg input:focus{border-color:#c8a96e}
+.cover-preview{width:70px;height:70px;border-radius:8px;background:#1e1e21;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.cover-preview img{width:100%;height:100%;object-fit:cover}
+.cover-preview .nocover{font-family:‘Playfair Display’,serif;font-size:1.6rem;color:#5a5652}
+.album-header-row{display:flex;gap:14px;margin-bottom:4px}
+.album-header-info h2{font-family:‘Playfair Display’,serif;font-size:1rem;font-weight:600;line-height:1.3}
+.album-header-info p{font-size:0.82rem;color:#9a9690;margin-top:3px}
+
+/* NEW TAG INPUT */
+.newtag-row{display:flex;gap:8px;margin-top:10px}
+.newtag-row input{flex:1;background:#1e1e21;border:1px solid #333337;border-radius:8px;padding:7px 12px;color:#f0ede8;font-size:0.82rem;outline:none;font-family:‘DM Sans’,sans-serif}
+.newtag-row input:focus{border-color:#c8a96e}
+.newtag-row .hbtn{flex-shrink:0}
+
+/* BULK TAG SHEET */
+.bulk-info{background:#1e1e21;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:#9a9690;line-height:1.5}
+
+/* EMPTY */
+.empty{text-align:center;padding:50px 24px;color:#5a5652}
+.empty .ico{font-size:2.8rem;margin-bottom:14px}
+.empty h3{font-family:‘Playfair Display’,serif;font-size:1.1rem;color:#9a9690;margin-bottom:7px}
+.empty p{font-size:0.83rem;line-height:1.6}
+
+/* FILE UPLOAD */
+.upload-area{border:2px dashed #2a2a2e;border-radius:10px;padding:18px;text-align:center;cursor:pointer;color:#5a5652;font-size:0.8rem;transition:all 0.2s;margin-bottom:12px}
+.upload-area:hover{border-color:#c8a96e;color:#c8a96e}
+.upload-area input{display:none}
+</style>
+
+</head>
+<body>
+
+<header>
+  <h1>Ma <span>Discothèque</span></h1>
+  <div style="display:flex;gap:7px;align-items:center">
+    <button class="hbtn" id="selectModeBtn" onclick="toggleSelectMode()">Sélection</button>
+    <button class="hbtn" onclick="openAdd()">+ Album</button>
+    <button class="hbtn" onclick="openImport()">Importer</button>
+    <button class="hbtn" onclick="openTagsManager()">Tags</button>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <span><strong id="totalCount">—</strong> albums</span>
+  <span id="untaggedBadge" class="badge" onclick="filterUntagged()" style="display:none">● <span id="untaggedCount">0</span> sans tags</span>
+  <span id="syncStatus"></span>
+</div>
+
+<div class="select-bar" id="selectBar">
+  <span id="selectCount">0 sélectionné(s)</span>
+  <button class="hbtn" onclick="openBulkTag()">Tagger</button>
+  <button class="hbtn" onclick="clearSelection()">Annuler</button>
+</div>
+
+<div class="search-wrap">
+  <input type="search" id="searchInput" placeholder="Rechercher artiste, album…" oninput="renderGrid()">
+</div>
+
+<div class="tag-filter-area" id="tagFilterArea"></div>
+
+<div class="grid-wrap">
+  <div id="albumGrid" class="album-grid"></div>
+  <div id="emptyState" class="empty" style="display:none">
+    <div class="ico">🎵</div>
+    <h3>Discothèque vide</h3>
+    <p>Importez un fichier JSON ou CSV depuis Soundiiz,<br>ou ajoutez des albums manuellement.</p>
+  </div>
+</div>
+
+<div class="sync-bar" id="syncBar">
+  <div class="sync-dot"></div>
+  <span id="syncLabel" style="font-size:0.78rem">Synchronisation…</span>
+  <div class="sync-progress"><div class="sync-progress-inner" id="syncProgressInner" style="width:0%"></div></div>
+  <span id="syncPct" style="font-size:0.72rem;color:#c8a96e">0%</span>
+</div>
+
+<!-- ALBUM DETAIL SHEET -->
+
+<div class="overlay" id="albumSheet" onclick="if(event.target===this)closeSheet('albumSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="album-header-row">
+      <div class="cover-preview" id="sheetCover"></div>
+      <div class="album-header-info"><h2 id="sheetTitle"></h2><p id="sheetArtist"></p></div>
+    </div>
+    <div id="sheetLinks" style="margin-top:10px"></div>
+    <div class="msec">Support</div>
+    <div class="support-row" id="sheetSupport"></div>
+    <div class="msec">Style</div>
+    <div class="tgrid" id="sheetStyle"></div>
+    <div class="msec">Musiques du monde</div>
+    <div class="tgrid" id="sheetMonde"></div>
+    <div class="msec">Affectif</div>
+    <div class="tgrid" id="sheetAffectif"></div>
+
+```
+<div class="mrow">
+  <button class="hbtn primary" id="saveBtn" onclick="saveAlbum()">Enregistrer</button>
+  <button class="hbtn" style="color:#e05a5a;border-color:#e05a5a33" onclick="deleteAlbum()">Supprimer</button>
+  <button class="hbtn" onclick="closeSheet('albumSheet')">Annuler</button>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- BULK TAG SHEET -->
+
+<div class="overlay" id="bulkSheet" onclick="if(event.target===this)closeSheet('bulkSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">Tagger la sélection</div>
+    <div class="bulk-info" id="bulkInfo"></div>
+    <div class="msec">Style</div>
+    <div class="tgrid" id="bulkStyle"></div>
+    <div class="msec">Musiques du monde</div>
+    <div class="tgrid" id="bulkMonde"></div>
+    <div class="msec">Affectif</div>
+    <div class="tgrid" id="bulkAffectif"></div>
+
+```
+<div class="mrow">
+  <button class="hbtn primary" onclick="applyBulkTags()">Appliquer</button>
+  <button class="hbtn" onclick="closeSheet('bulkSheet')">Annuler</button>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- IMPORT SHEET -->
+
+<div class="overlay" id="importSheet" onclick="if(event.target===this)closeSheet('importSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">Importer depuis Soundiiz</div>
+    <p style="font-size:0.8rem;color:#9a9690;margin-bottom:14px;line-height:1.6">Exportez votre bibliothèque Qobuz via Soundiiz en <strong style="color:#c8a96e">JSON</strong> (recommandé) ou CSV. Les albums existants et leurs tags sont préservés.</p>
+    <div class="upload-area" onclick="document.getElementById('importFile').click()">
+      <input type="file" id="importFile" accept=".json,.csv,.txt" onchange="handleFile(event)">
+      📂 Choisir un fichier JSON ou CSV
+    </div>
+    <div class="divider"></div>
+    <p style="font-size:0.78rem;color:#5a5652;margin-bottom:8px">Ou coller le contenu :</p>
+    <textarea id="importPaste" style="width:100%;background:#1e1e21;border:1px solid #2a2a2e;border-radius:9px;padding:11px;color:#f0ede8;font-family:'DM Sans',sans-serif;font-size:0.78rem;height:100px;resize:none;outline:none" placeholder='[{"artist":"Miles Davis","title":"Kind of Blue",...}]'></textarea>
+    <div class="mrow">
+      <button class="hbtn primary" id="importBtn" onclick="doImport()">Importer</button>
+      <button class="hbtn" onclick="closeSheet('importSheet')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD ALBUM SHEET -->
+
+<div class="overlay" id="addSheet" onclick="if(event.target===this)closeSheet('addSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">Ajouter un album</div>
+    <div class="fg"><label>Artiste</label><input type="text" id="addArtist" placeholder="ex. Miles Davis"></div>
+    <div class="fg"><label>Album</label><input type="text" id="addAlbum" placeholder="ex. Kind of Blue"></div>
+    <div class="msec">Support</div>
+    <div class="support-row" id="addSupport"></div>
+    <div class="mrow">
+      <button class="hbtn primary" onclick="doAddAlbum()">Ajouter</button>
+      <button class="hbtn" onclick="closeSheet('addSheet')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+const SB_URL = 'https://krupaaqoxygnakuegfll.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtydXBhYXFveHlnbmFrdWVnZmxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MTI4MjUsImV4cCI6MjA5MzI4ODgyNX0.5oiGkW81SwBZ2iPgiM-l2nVyT4wCqjaHlew5ztNCD-c';
+const SBH = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+// ── TAGS ────────────────────────────────────────────────
+const TAGS_DEFAULT = {
+  style:["Jazz - Les grands du jazz","Jazz - Jazz classique","Jazz - Jazz vocal","Jazz - Jazz fusion","Jazz - Jazz actuel","Jazz - Jazz français","Jazz - Jazz nordique","Jazz - Jazz japonais","Rock - Rock classique","Rock - Hard rock / Metal","Rock - Rock indé","Rock - Rock progressif","Rock - Punk / New wave","Hip-hop / Rap - Rap US","Hip-hop / Rap - Rap français","Hip-hop / Rap - Rap UK","Hip-hop / Rap - Rap Afrique","Hip-hop / Rap - Rap autres","Électro - House / Techno","Électro - Ambient / Downtempo","Électro - Trip-hop","Électro - Électro expérimentale","Soul / Funk / R&B - Soul classique","Soul / Funk / R&B - Funk","Soul / Funk / R&B - R&B contemporain","Soul / Funk / R&B - Gospel","Classique - Baroque","Classique - Classique / Romantique","Classique - Contemporain","Folk / Roots - Folk anglo-saxon","Folk / Roots - Blues","Folk / Roots - Country / Americana","Pop - Pop internationale","Pop - Variété française"],
+  monde:["Musiques du monde — Afrique","Musiques du monde — Amériques","Musiques du monde — Asie","Musiques du monde — Europe","Musiques du monde — Océanie"],
+  affectif:["Indispensables","Coups de cœur","Découvertes récentes","À explorer"]
+};
+let TAGS_BUILTIN = JSON.parse(localStorage.getItem('disco_tags')||'null') || JSON.parse(JSON.stringify(TAGS_DEFAULT));
+function saveTags(){localStorage.setItem('disco_tags',JSON.stringify(TAGS_BUILTIN));}
+// Keep customTags as empty for backward compat
+const customTags = [];
+function saveCustomTags(){}
+
+// ── STATE ────────────────────────────────────────────────
+let albums = [];
+let activeFilters = new Set();
+let showUntaggedOnly = false;
+let currentId = null;
+let pendingTags = [];
+let pendingSupport = {};
+let selectedIds = new Set();
+let selectMode = false;
+let bulkPendingTags = [];
+
+// ── SUPABASE ─────────────────────────────────────────────
+async function sb(path, opts={}){
+  const headers = {...SBH,...(opts.headers||{})};
+  if(opts.method==='POST') {
+    headers['Prefer'] = (opts.headers&&opts.headers['Prefer']) || 'resolution=merge-duplicates,return=minimal';
+  } else if(opts.method==='PATCH') {
+    headers['Prefer'] = 'return=minimal';
+  }
+  const r = await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers});
+  if(!r.ok){
+    const txt = await r.text();
+    throw new Error(txt);
+  }
+  if(r.status===204||r.status===201) return null;
+  try{ return r.json(); }catch(e){ return null; }
+}
+
+async function loadAlbums(){
+  showSync('Chargement…',0);
+  try{
+    // Use Range header for pagination (Supabase correct syntax)
+    let all=[], start=0, pageSize=1000;
+    while(true){
+      const end=start+pageSize-1;
+      const r=await fetch(SB_URL+'/rest/v1/albums?select=*&order=artist.asc',{
+        headers:{...SBH,'Range-Unit':'items','Range':start+'-'+end}
+      });
+      if(!r.ok) throw new Error(await r.text());
+      const page=await r.json();
+      if(!Array.isArray(page)||page.length===0) break;
+      all=all.concat(page);
+      if(page.length<pageSize) break;
+      start+=pageSize;
+      showSync('Chargement… '+all.length,Math.min(90,all.length/25));
+    }
+    albums=all;
+    setSyncStatus('✓ '+albums.length+' albums');
+  }catch(e){
+    setSyncStatus('⚠️ Hors ligne');
+    albums=JSON.parse(localStorage.getItem('disco_backup')||'[]');
+  }
+  hideSync();
+  renderFilters(); renderGrid();
+}
+
+function backup(){localStorage.setItem('disco_backup',JSON.stringify(albums))}
+
+// ── SYNC UI ──────────────────────────────────────────────
+function showSync(msg,pct){
+  document.getElementById('syncLabel').textContent=msg;
+  document.getElementById('syncProgressInner').style.width=(pct||0)+'%';
+  document.getElementById('syncPct').textContent=(pct||0)+'%';
+  document.getElementById('syncBar').classList.add('show');
+}
+function updateSyncProgress(done,total){
+  const pct=Math.round(done/total*100);
+  document.getElementById('syncProgressInner').style.width=pct+'%';
+  document.getElementById('syncPct').textContent=pct+'%';
+  document.getElementById('syncLabel').textContent=`Import… ${done}/${total}`;
+}
+function hideSync(){document.getElementById('syncBar').classList.remove('show')}
+function setSyncStatus(msg){document.getElementById('syncStatus').textContent=msg}
+
+// ── STATS ────────────────────────────────────────────────
+function updateStats(){
+  const untagged=albums.filter(a=>!a.tags||!a.tags.length).length;
+  document.getElementById('totalCount').textContent=albums.length;
+  const b=document.getElementById('untaggedBadge');
+  if(untagged>0){b.style.display='inline-flex';document.getElementById('untaggedCount').textContent=untagged;b.classList.toggle('active',showUntaggedOnly);}
+  else b.style.display='none';
+}
+
+// ── FILTERS ──────────────────────────────────────────────
+function renderFilters(){
+  const area=document.getElementById('tagFilterArea');
+  area.innerHTML='';
+
+  // Each group has its own "Tous" — active only if no filter active in THAT group
+  const groups=[
+    {label:'Style',key:'style',tags:TAGS_BUILTIN.style},
+    {label:'Musiques du monde',key:'monde',tags:TAGS_BUILTIN.monde},
+    {label:'Affectif',key:'affectif',tags:TAGS_BUILTIN.affectif}
+  ];
+  if(customTags.length) groups.push({label:'Tags personnalisés',key:'custom',tags:customTags});
+
+  groups.forEach(g=>{
+    // Is any tag from THIS group active?
+    const groupHasActive = g.tags.some(t=>activeFilters.has(t));
+    const wrap=document.createElement('div');
+    const lbl=document.createElement('div');
+    lbl.className='tg-label'; lbl.textContent=g.label;
+    wrap.appendChild(lbl);
+    const scroll=document.createElement('div');
+    scroll.className='tag-scroll'+(g.key==='style'?' multirow':'');
+    // "Tous" for this group — active when no filter in this group
+    const all=document.createElement('div');
+    all.className='tchip all'+(!groupHasActive&&!showUntaggedOnly?' active':'');
+    all.textContent='Tous';
+    all.dataset.action='clear-group';
+    all.dataset.group=g.key;
+    scroll.appendChild(all);
+    g.tags.forEach(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      const d=document.createElement('div');
+      d.className='tchip'+(g.key==='custom'?' custom':'')+(activeFilters.has(t)?' active':'');
+      d.textContent=s;
+      d.dataset.tag=t;
+      scroll.appendChild(d);
+    });
+    wrap.appendChild(scroll);
+    area.appendChild(wrap);
+  });
+}
+
+// Event delegation for filter chips - one listener, no inline onclick
+document.addEventListener('click', function(e){
+  const chip=e.target.closest('.tchip');
+  if(!chip||!chip.closest('#tagFilterArea')) return;
+  if(chip.dataset.action==='clear'){ clearFilters(); return; }
+  if(chip.dataset.action==='clear-group'){
+    const groupTags = chip.dataset.group==='custom' ? customTags :
+      (TAGS_BUILTIN[chip.dataset.group]||[]);
+    groupTags.forEach(t=>activeFilters.delete(t));
+    showUntaggedOnly=false;
+    renderFilters(); renderGrid();
+    return;
+  }
+  if(chip.dataset.tag){ toggleFilter(chip.dataset.tag); }
+});
+
+function getAxis(tag){
+  if(TAGS_BUILTIN.style.includes(tag)) return 'style';
+  if(TAGS_BUILTIN.monde.includes(tag)) return 'monde';
+  if(TAGS_BUILTIN.affectif.includes(tag)) return 'affectif';
+  return 'custom';
+}
+
+function toggleFilter(tag){
+  showUntaggedOnly=false;
+  if(activeFilters.has(tag)){
+    activeFilters.delete(tag);
+  } else {
+    activeFilters.add(tag);
+  }
+  // Rebuild filter chips from scratch — guarantees visual sync
+  renderFilters();
+  renderGrid();
+}
+function clearFilters(){activeFilters.clear();showUntaggedOnly=false;renderFilters();renderGrid();}
+function filterUntagged(){showUntaggedOnly=!showUntaggedOnly;activeFilters.clear();renderFilters();renderGrid();}
+
+// ── GRID ─────────────────────────────────────────────────
+function getFiltered(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  return albums.filter(a=>{
+    if(q&&!a.artist.toLowerCase().includes(q)&&!a.album.toLowerCase().includes(q)) return false;
+    if(showUntaggedOnly) return !a.tags||!a.tags.length;
+    if(!activeFilters.size) return true;
+    // Group active filters by axis
+    const axes={style:[],monde:[],affectif:[],custom:[]};
+    activeFilters.forEach(f=>axes[getAxis(f)].push(f));
+    const atags=a.tags||[];
+    // Within each axis: OR (album must match at least one)
+    // Between axes: AND (album must satisfy all active axes)
+    return Object.values(axes).every(group=>
+      group.length===0 || group.some(f=>atags.includes(f))
+    );
+  });
+}
+
+function renderGrid(){
+  updateStats();
+  const filtered=getFiltered();
+  const grid=document.getElementById('albumGrid');
+  const empty=document.getElementById('emptyState');
+  if(!filtered.length){grid.style.display='none';empty.style.display='block';return;}
+  grid.style.display='grid';empty.style.display='none';
+  grid.innerHTML='';
+  filtered.forEach(a=>{
+    grid.appendChild(buildCard(a));
+  });
+}
+
+function buildCard(a){
+    const untagged=!a.tags||!a.tags.length;
+    const sup=a.support||{qobuz:true};
+    const tags=(a.tags||[]).slice(0,2).map(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      return `<span class="minitag">${s}</span>`;
+    }).join('');
+    const badges=[
+      sup.qobuz?'<span class="sbadge qobuz">QOBUZ</span>':'',
+      sup.vinyl?'<span class="sbadge vinyl">VINYL</span>':'',
+      sup.cd?'<span class="sbadge cd">CD</span>':''
+    ].join('');
+    // Build card with createElement to avoid template literal conflicts
+    const card=document.createElement('div');
+    card.className='acard'+(untagged?' untagged':'')+(selectedIds.has(String(a.id))?' selected':'');
+    card.dataset.id=String(a.id);
+    card.onclick=function(){ cardClick(String(a.id)); };
+    const cover=document.createElement('div');
+    cover.className='acover';
+    if(a.cover_url){const img=document.createElement('img');img.src=a.cover_url;img.alt='';img.loading='lazy';cover.appendChild(img);}
+    else{const nc=document.createElement('span');nc.className='nocover';nc.textContent='♪';cover.appendChild(nc);}
+    if(untagged&&!selectMode){const dot=document.createElement('div');dot.className='untagged-dot';cover.appendChild(dot);}
+    const sb_div=document.createElement('div');sb_div.className='support-badges';sb_div.innerHTML=badges;cover.appendChild(sb_div);
+    if(a.album_link){
+      const qbtn=document.createElement('a');
+      qbtn.className='qobuz-btn';qbtn.href=a.album_link;qbtn.target='_blank';qbtn.textContent='▶';
+      qbtn.onclick=(e)=>e.stopPropagation();
+      cover.appendChild(qbtn);
+    }
+    card.appendChild(cover);
+    const info=document.createElement('div');info.className='ainfo';
+    const title=document.createElement('div');title.className='atitle';title.textContent=a.album;
+    const artist=document.createElement('div');artist.className='aartist';artist.textContent=a.artist;
+    info.appendChild(title);info.appendChild(artist);
+    if(tags){const tagsDiv=document.createElement('div');tagsDiv.className='atags';tagsDiv.innerHTML=tags;info.appendChild(tagsDiv);}
+    card.appendChild(info);
+    return card;
+}
+
+// ── SELECT MODE ──────────────────────────────────────────
+function toggleSelectMode(){
+  selectMode=!selectMode;
+  const btn=document.getElementById('selectModeBtn');
+  btn.classList.toggle('select-mode',selectMode);
+  btn.textContent=selectMode?'Fin sélection':'Sélection';
+  if(!selectMode){clearSelection();}
+  document.getElementById('selectBar').classList.toggle('show',selectMode);
+  renderGrid();
+}
+
+function clearSelection(){
+  selectedIds.clear();
+  document.getElementById('selectCount').textContent='0 sélectionné(s)';
+  renderGrid();
+}
+
+function cardClick(id){
+  const sid=String(id);
+  if(selectMode){
+    selectedIds.has(sid)?selectedIds.delete(sid):selectedIds.add(sid);
+    document.getElementById('selectCount').textContent=selectedIds.size+' sélectionné(s)';
+    renderGrid();
+  } else {
+    openAlbum(sid);
+  }
+}
+
+// ── ALBUM SHEET ──────────────────────────────────────────
+function openAlbum(id){
+  const a=albums.find(x=>String(x.id)===String(id));
+  if(!a){ setSyncStatus('ID '+id+' non trouvé'); return; }
+
+  currentId=String(id);
+  pendingTags=[...(a.tags||[])];
+  pendingSupport={...({qobuz:true,...(a.support||{})})};
+  document.getElementById('sheetTitle').textContent=a.album;
+  document.getElementById('sheetArtist').textContent=a.artist;
+  const sc=document.getElementById('sheetCover'); sc.innerHTML='';
+  if(a.cover_url){const ci=document.createElement('img');ci.src=a.cover_url;ci.alt='';sc.appendChild(ci);}
+  else{const cn=document.createElement('span');cn.className='nocover';cn.textContent='♪';sc.appendChild(cn);}
+
+  // Links
+  const links=document.getElementById('sheetLinks');
+  links.innerHTML='';
+  if(a.album_link||a.artist_link){
+    const row=document.createElement('div');
+    row.className='link-row';
+    if(a.album_link){
+      const lnk=document.createElement('a');
+      lnk.className='link-btn'; lnk.href=a.album_link;
+      lnk.target='_blank'; lnk.textContent='🎵 Album sur Qobuz';
+      row.appendChild(lnk);
+    }
+    if(a.artist_link){
+      const lnk=document.createElement('a');
+      lnk.className='link-btn'; lnk.href=a.artist_link;
+      lnk.target='_blank'; lnk.textContent='👤 Artiste sur Qobuz';
+      row.appendChild(lnk);
+    }
+    links.appendChild(row);
+  }
+
+  // Support
+  renderSupportBtns('sheetSupport', pendingSupport, (sup)=>{pendingSupport=sup;});
+
+  // Tags
+  ['Style','Monde','Affectif'].forEach(sec=>{
+    const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
+    const el=document.getElementById('sheet'+sec);
+    el.innerHTML='';
+    TAGS_BUILTIN[key].forEach(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      const d=document.createElement('div');
+      d.className='ttoggle'+(pendingTags.includes(t)?' on':'');
+      d.dataset.tag=t;
+      d.textContent=s;
+      el.appendChild(d);
+    });
+  });
+
+  document.getElementById('albumSheet').classList.add('open');
+}
+
+function ptToggle(tag){
+  const idx=pendingTags.indexOf(tag);
+  if(idx>=0) pendingTags.splice(idx,1); else pendingTags.push(tag);
+  // Update visual state directly on existing elements - no DOM recreation
+  document.querySelectorAll('#albumSheet .ttoggle').forEach(el=>{
+    if(el.dataset.tag===tag){
+      if(pendingTags.includes(tag)) el.classList.add('on');
+      else el.classList.remove('on');
+    }
+  });
+}
+
+
+
+async function saveAlbum(){
+  const a=albums.find(x=>x.id===currentId);if(!a)return;
+  const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='…';
+  a.tags=pendingTags;a.support=pendingSupport;
+  try{await sb('albums?id=eq.'+currentId,{method:'PATCH',body:JSON.stringify({tags:a.tags,support:a.support})});backup();}
+  catch(e){setSyncStatus('⚠️ Erreur sync');}
+  btn.disabled=false;btn.textContent='Enregistrer';
+  closeSheet('albumSheet');renderFilters();renderGrid();
+}
+
+async function deleteAlbum(){
+  if(!confirm('Supprimer cet album ?'))return;
+  try{await sb('albums?id=eq.'+currentId,{method:'DELETE'});albums=albums.filter(a=>a.id!==currentId);backup();}
+  catch(e){setSyncStatus('⚠️ Erreur sync');}
+  closeSheet('albumSheet');renderGrid();
+}
+
+// ── SUPPORT ──────────────────────────────────────────────
+function renderSupportBtns(containerId, supObj, onChange){
+  const el=document.getElementById(containerId);
+  const items=[{key:'qobuz',label:'🎵 Qobuz'},{key:'vinyl',label:'💿 Vinyle'},{key:'cd',label:'📀 CD'}];
+  el.innerHTML=items.map(({key,label})=>
+    `<div class="sup-btn ${supObj[key]?'on '+key:''}" onclick="toggleSupport('${containerId}','${key}')">${label}</div>`
+  ).join('');
+  el._supObj=supObj;el._onChange=onChange;
+}
+
+function toggleSupport(containerId,key){
+  const el=document.getElementById(containerId);
+  if(containerId==='sheetSupport'){pendingSupport[key]=!pendingSupport[key];renderSupportBtns(containerId,pendingSupport,null);}
+  else if(containerId==='addSupport'){addSupportState[key]=!addSupportState[key];renderSupportBtns(containerId,addSupportState,null);}
+}
+
+// ── BULK TAG ─────────────────────────────────────────────
+function openBulkTag(){
+  if(!selectedIds.size){alert('Sélectionnez au moins un album.');return;}
+  bulkPendingTags=[];
+  document.getElementById('bulkInfo').textContent=`${selectedIds.size} album(s) sélectionné(s). Les tags cochés seront ajoutés à tous.`;
+  ['Style','Monde','Affectif'].forEach(sec=>{
+    const key=sec==='Affectif'?'affectif':sec==='Monde'?'monde':'style';
+    const el=document.getElementById('bulk'+sec);
+    el.innerHTML='';
+    TAGS_BUILTIN[key].forEach(t=>{
+      const s=t.includes(' - ')?t.split(' - ')[1]:(t.includes('— ')?t.split('— ')[1]:t);
+      const d=document.createElement('div');
+      d.className='ttoggle';
+      d.dataset.tag=t;
+      d.textContent=s;
+      el.appendChild(d);
+    });
+  });
+  renderCustomToggles('bulkCustom', bulkPendingTags);
+  document.getElementById('bulkNewTagInput').value='';
+  document.getElementById('bulkSheet').classList.add('open');
+}
+
+function btToggle(tag){
+  const idx=bulkPendingTags.indexOf(tag);
+  if(idx>=0)bulkPendingTags.splice(idx,1);else bulkPendingTags.push(tag);
+  // Update visual state directly on element
+  document.querySelectorAll('#bulkSheet .ttoggle').forEach(el=>{
+    if(el.dataset.tag===tag){
+      if(bulkPendingTags.includes(tag)) el.classList.add('on');
+      else el.classList.remove('on');
+    }
+  });
+}
+
+function addBulkCustomTag(){
+  const inp=document.getElementById('bulkNewTagInput');
+  const val=inp.value.trim();if(!val)return;
+  if(!customTags.includes(val)){customTags.push(val);saveCustomTags();}
+  if(!bulkPendingTags.includes(val))bulkPendingTags.push(val);
+  inp.value='';
+  // Re-render custom section
+  renderCustomToggles('bulkCustom', bulkPendingTags);
+  renderFilters();
+}
+
+async function applyBulkTags(){
+  if(!bulkPendingTags.length){alert('Sélectionnez au moins un tag.');return;}
+  const ids=[...selectedIds];
+  showSync('Application des tags…',0);
+  let done=0;
+  for(const id of ids){
+    const a=albums.find(x=>x.id===id);if(!a)continue;
+    const newTags=[...(a.tags||[])];
+    bulkPendingTags.forEach(t=>{if(!newTags.includes(t))newTags.push(t);});
+    a.tags=newTags;
+    try{await sb('albums?id=eq.'+id,{method:'PATCH',body:JSON.stringify({tags:newTags})});}catch(e){}
+    done++;updateSyncProgress(done,ids.length);
+  }
+  backup();hideSync();setSyncStatus('✓ Synchronisé');
+  closeSheet('bulkSheet');clearSelection();toggleSelectMode();
+  renderFilters();renderGrid();
+}
+
+// ── IMPORT ───────────────────────────────────────────────
+function openImport(){document.getElementById('importSheet').classList.add('open');}
+function handleFile(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=ev=>{document.getElementById('importPaste').value=ev.target.result;};r.readAsText(f,'UTF-8');
+}
+
+function parseImport(text){
+  const t=text.trim();
+  if(t.startsWith('[')||t.startsWith('{')){
+    try{
+      const data=JSON.parse(t);
+      const arr=Array.isArray(data)?data:(data.items||data.albums||Object.values(data)[0]);
+      if(!Array.isArray(arr))return null;
+      const rows=arr.map(item=>({
+        artist:(item.artist||item.artist_name||'').trim(),
+        album:(item.title||item.album||item.name||'').trim(),
+        cover_url:item.picture?item.picture.replace('_230.jpg','_600.jpg'):null,
+        album_link:item.albumLink||null,
+        artist_link:item.artistLink||null
+      })).filter(r=>r.artist&&r.album);
+      if(rows.length)return{rows,format:'JSON'};
+    }catch(e){}
+  }
+  // CSV
+  const lines=t.split('\n').filter(l=>l.trim());
+  if(lines.length<2)return null;
+  const sep=lines[0].includes(';')?';':',';
+  const header=lines[0].toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,''));
+  const ai=header.findIndex(h=>h.includes('artist')||h.includes('artiste'));
+  const li=header.findIndex(h=>h.includes('album')||h.includes('titre')||h.includes('title'));
+  if(ai<0||li<0)return null;
+  const rows=lines.slice(1).map(line=>{
+    const cols=line.match(/(".*?"|[^",;\n]+)(?=[,;\n]|$)/g)||line.split(sep);
+    const c=cols.map(x=>x.trim().replace(/^"|"$/g,''));
+    return{artist:c[ai]||'',album:c[li]||''};
+  }).filter(r=>r.artist&&r.album);
+  return rows.length?{rows,format:'CSV'}:null;
+}
+
+async function doImport(){
+  const text=document.getElementById('importPaste').value;
+  if(!text.trim())return;
+  const result=parseImport(text);
+  if(!result){alert('Format non reconnu.\nJSON attendu : [{"artist":"…","title":"…"}]\nCSV : colonnes Artist et Album');return;}
+  const btn=document.getElementById('importBtn');btn.disabled=true;
+  // Send ALL rows to Supabase - it will ignore duplicates via unique index
+  const newAlbums=result.rows
+    .map(r=>({artist:r.artist,album:r.album,tags:['Découvertes récentes'],support:{qobuz:true},cover_url:r.cover_url||null,album_link:r.album_link||null,artist_link:r.artist_link||null}));
+  
+  // Quick test: try inserting just the first NEW-looking album
+  const testItem = newAlbums[0];
+  try {
+    const testResp = await fetch(SB_URL+'/rest/v1/albums',{
+      method:'POST',
+      headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=representation','Content-Type':'application/json'},
+      body:JSON.stringify([testItem])
+    });
+    const testStatus = testResp.status;
+    const testBody = await testResp.text();
+    alert('Test insert status:'+testStatus+' body:'+testBody.substring(0,100));
+  } catch(ex) { alert('Test error:'+ex.message); }
+  let added=0;
+  if(newAlbums.length){
+    const CHUNK=100;
+    for(let i=0;i<newAlbums.length;i+=CHUNK){
+      const chunk=newAlbums.slice(i,i+CHUNK);
+      showSync('Import…',Math.round(i/newAlbums.length*100));
+      document.getElementById('syncLabel').textContent=`Import… ${Math.min(i+CHUNK,newAlbums.length)}/${newAlbums.length}`;
+      try{
+        await sb('albums', {
+          method:'POST',
+          headers:{'Prefer':'resolution=ignore-duplicates,return=minimal'},
+          body:JSON.stringify(chunk)
+        });
+        albums.push(...chunk);
+        added+=chunk.length;
+      }catch(e){setSyncStatus('⚠️ Erreur: '+e.message.substring(0,60));}
+    }
+    backup();
+  }
+  // Remove albums that were only on Qobuz and are no longer in the import
+  const importedKeys = new Set(result.rows.map(r=>r.artist.toLowerCase()+'||'+r.album.toLowerCase()));
+  const toDelete = albums.filter(a=>{
+    const sup = a.support||{qobuz:true};
+    const onlyQobuz = sup.qobuz && !sup.vinyl && !sup.cd;
+    const stillInQobuz = importedKeys.has(a.artist.toLowerCase()+'||'+a.album.toLowerCase());
+    return onlyQobuz && !stillInQobuz;
+  });
+  let deleted=0;
+  for(const a of toDelete){
+    try{await sb('albums?id=eq.'+a.id,{method:'DELETE'});deleted++;}catch(e){}
+  }
+  albums = albums.filter(a=>!toDelete.includes(a));
+
+  btn.disabled=false;hideSync();setSyncStatus('✓ Synchronisé');
+  closeSheet('importSheet');document.getElementById('importPaste').value='';
+  renderFilters();renderGrid();
+  const msg = [`Import ${result.format} — ${added} ajouté(s)`];
+  if(deleted>0) msg.push(`${deleted} supprimé(s) (retirés de Qobuz)`);
+  alert(msg.join(', ')+` sur ${result.rows.length} détectés.`);
+}
+
+// ── ADD MANUAL ───────────────────────────────────────────
+let addSupportState={qobuz:true,vinyl:false,cd:false};
+function openAdd(){
+  addSupportState={qobuz:true,vinyl:false,cd:false};
+  renderSupportBtns('addSupport',addSupportState,null);
+  document.getElementById('addArtist').value='';
+  document.getElementById('addAlbum').value='';
+  document.getElementById('addSheet').classList.add('open');
+}
+async function doAddAlbum(){
+  const artist=document.getElementById('addArtist').value.trim();
+  const album=document.getElementById('addAlbum').value.trim();
+  if(!artist||!album)return;
+  if(albums.some(a=>a.artist.toLowerCase()===artist.toLowerCase()&&a.album.toLowerCase()===album.toLowerCase())){alert('Album déjà présent.');return;}
+  const n={artist,album,tags:[],support:{...addSupportState},cover_url:null,album_link:null,artist_link:null};
+  try{
+    const res = await sb('albums',{method:'POST',headers:{'Prefer':'resolution=ignore-duplicates,return=representation'},body:JSON.stringify(n)});
+    const saved = (Array.isArray(res)&&res[0]) ? res[0] : n;
+    albums.push(saved); backup();
+  }catch(e){
+    setSyncStatus('⚠️ Erreur sync');
+    alert('Erreur: '+e.message.substring(0,200));
+  }
+  closeSheet('addSheet');renderFilters();renderGrid();
+}
+
+// ── UTILS ────────────────────────────────────────────────
+function closeSheet(id){document.getElementById(id).classList.remove('open');}
+function escAttr(s){return s.replace(/'/g,'&apos;').replace(/"/g,'&quot;');}
+
+// ── INIT ─────────────────────────────────────────────────
+
+// Add support column migration helper
+async function ensureSupportColumn(){
+  // Try patching a dummy — Supabase will ignore unknown columns gracefully
+  // Just proceed; if support col doesn't exist yet, we'll handle via JSONB
+}
+
+
+// ── TAGS MANAGER ─────────────────────────────────────────
+const AXIS_LABELS = {style:'Style', monde:'Musiques du monde', affectif:'Affectif'};
+let currentAxis = 'style';
+
+function openTagsManager(){
+  currentAxis='style';
+  renderAxisSelector();
+  renderTagsManager();
+  document.getElementById('tagsSheet').classList.add('open');
+}
+
+function renderAxisSelector(){
+  const el=document.getElementById('tagsAxisSelector');
+  el.innerHTML='';
+  Object.entries(AXIS_LABELS).forEach(([key,label])=>{
+    const b=document.createElement('button');
+    b.className='hbtn'+(currentAxis===key?' primary':'');
+    b.textContent=label;
+    b.onclick=()=>{ currentAxis=key; renderAxisSelector(); renderTagsManager(); };
+    el.appendChild(b);
+  });
+}
+
+function renderTagsManager(){
+  const el=document.getElementById('tagsManagerList');
+  el.innerHTML='';
+  const axisTags=TAGS_BUILTIN[currentAxis]||[];
+  if(!axisTags.length){
+    const p=document.createElement('p');
+    p.style.cssText='font-size:0.82rem;color:#5a5652;text-align:center;padding:20px';
+    p.textContent='Aucun tag personnalisé';
+    el.appendChild(p);
+    return;
+  }
+  axisTags.forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2a2a2e';
+    const lbl=document.createElement('span');
+    lbl.id='tagLabel_'+i;
+    lbl.style.cssText='flex:1;font-size:0.85rem;color:#f0ede8';
+    lbl.textContent=t;
+    const inp=document.createElement('input');
+    inp.type='text'; inp.id='tagEdit_'+i; inp.value=t;
+    inp.style.cssText='flex:1;display:none;background:#1e1e21;border:1px solid #c8a96e;border-radius:6px;padding:5px 8px;color:#f0ede8;font-size:0.82rem;outline:none';
+    inp.onkeydown=(e)=>{if(e.key==='Enter')saveEditTag(i);};
+    const btnEdit=document.createElement('button');
+    btnEdit.className='hbtn'; btnEdit.textContent='✏️';
+    btnEdit.style.cssText='padding:4px 10px;font-size:0.72rem';
+    btnEdit.onclick=()=>startEditTag(i);
+    const btnSave=document.createElement('button');
+    btnSave.className='hbtn primary'; btnSave.id='saveTagBtn_'+i; btnSave.textContent='✓';
+    btnSave.style.cssText='padding:4px 10px;font-size:0.72rem;display:none';
+    btnSave.onclick=()=>saveEditTag(i);
+    const btnDel=document.createElement('button');
+    btnDel.className='hbtn'; btnDel.textContent='✕';
+    btnDel.style.cssText='padding:4px 10px;font-size:0.72rem;color:#e05a5a;border-color:#e05a5a44';
+    btnDel.onclick=()=>deleteGlobalTag(i);
+    row.appendChild(lbl); row.appendChild(inp);
+    row.appendChild(btnEdit); row.appendChild(btnSave); row.appendChild(btnDel);
+    el.appendChild(row);
+  });
+}
+
+function startEditTag(i){
+  document.getElementById('tagLabel_'+i).style.display='none';
+  document.getElementById('tagEdit_'+i).style.display='block';
+  document.getElementById('saveTagBtn_'+i).style.display='block';
+  document.getElementById('tagEdit_'+i).focus();
+}
+
+function saveEditTag(i){
+  const newVal=document.getElementById('tagEdit_'+i).value.trim();
+  if(!newVal)return;
+  const oldVal=TAGS_BUILTIN[currentAxis][i];
+  TAGS_BUILTIN[currentAxis][i]=newVal;
+  saveTags();
+  // Update all albums that had the old tag
+  albums.forEach(a=>{
+    if(!a.tags)return;
+    const idx=a.tags.indexOf(oldVal);
+    if(idx>=0){
+      a.tags[idx]=newVal;
+      sb('albums?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify({tags:a.tags})}).catch(()=>{});
+    }
+  });
+  backup();
+  renderTagsManager();
+  renderFilters();
+}
+
+function deleteGlobalTag(i){
+  const tag=TAGS_BUILTIN[currentAxis][i];
+  if(!confirm('Supprimer le tag "'+tag+'" de tous les albums ?'))return;
+  TAGS_BUILTIN[currentAxis].splice(i,1);
+  saveTags();
+  // Remove from all albums
+  albums.forEach(a=>{
+    if(!a.tags)return;
+    const idx=a.tags.indexOf(tag);
+    if(idx>=0){
+      a.tags.splice(idx,1);
+      sb('albums?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify({tags:a.tags})}).catch(()=>{});
+    }
+  });
+  backup();
+  renderTagsManager();
+  renderFilters();
+  renderGrid();
+}
+
+function addGlobalTag(){
+  const inp=document.getElementById('newGlobalTagInput');
+  const val=inp.value.trim();if(!val)return;
+  if(TAGS_BUILTIN[currentAxis].includes(val)){alert('Tag déjà existant.');return;}
+  TAGS_BUILTIN[currentAxis].push(val);saveTags();
+  inp.value='';
+  renderTagsManager();
+  renderFilters();
+}
+
+// Event delegation for album sheet toggles
+document.addEventListener('click', function(e){
+  const tog=e.target.closest('.ttoggle');
+  if(!tog||!tog.dataset.tag) return;
+  if(tog.closest('#albumSheet')){ ptToggle(tog.dataset.tag); return; }
+  if(tog.closest('#bulkSheet')){ btToggle(tog.dataset.tag); return; }
+});
+
+// Card clicks handled directly via onclick in buildCard
+loadAlbums();
+</script>
+
+<!-- TAGS MANAGEMENT SHEET -->
+
+<div class="overlay" id="tagsSheet" onclick="if(event.target===this)closeSheet('tagsSheet')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">Gérer les tags</div>
+    <div id="tagsAxisSelector" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
+    <div id="tagsManagerList"></div>
+    <div class="newtag-row" style="margin-top:16px">
+      <input type="text" id="newGlobalTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addGlobalTag()">
+      <button class="hbtn primary" onclick="addGlobalTag()">+ Ajouter</button>
+    </div>
+    <div class="mrow">
+      <button class="hbtn" onclick="closeSheet('tagsSheet')">Fermer</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
