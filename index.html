@@ -189,6 +189,8 @@ header h1 span{font-style:italic}
 
 <div class="stats-bar">
   <span><strong id="totalCount">—</strong> albums</span>
+  <span>·</span>
+  <span><strong id="artistCount">—</strong> artistes</span>
   <span id="untaggedBadge" class="badge" onclick="filterUntagged()" style="display:none">● <span id="untaggedCount">0</span> sans tags</span>
   <span id="syncStatus"></span>
 </div>
@@ -419,6 +421,8 @@ function setSyncStatus(msg){document.getElementById('syncStatus').textContent=ms
 function updateStats(){
   const untagged=albums.filter(a=>!a.tags||!a.tags.length).length;
   document.getElementById('totalCount').textContent=albums.length;
+  const artistNb=new Set(albums.map(a=>a.artist)).size;
+  document.getElementById('artistCount').textContent=artistNb;
   const b=document.getElementById('untaggedBadge');
   if(untagged>0){b.style.display='inline-flex';document.getElementById('untaggedCount').textContent=untagged;b.classList.toggle('active',showUntaggedOnly);}
   else b.style.display='none';
