@@ -167,10 +167,6 @@ header h1 span{font-style:italic}
 .artist-back{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#161618;border-bottom:1px solid #2a2a2e;position:sticky;top:53px;z-index:98}
 .artist-back-btn{background:#1e1e21;border:1px solid #2a2a2e;color:#9a9690;border-radius:18px;padding:5px 12px;font-size:0.78rem;cursor:pointer}
 .artist-back-title{font-family:'Playfair Display',serif;font-size:1rem;color:#e8c98e;font-style:italic}
-
-/* TAGS SYNC BANNER */
-.tags-sync-banner{background:#6eb5ff18;border:1px solid #6eb5ff55;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:0.78rem;color:#6eb5ff;line-height:1.5}
-.tags-sync-banner strong{color:#9ed1ff}
 </style>
 </head>
 <body>
@@ -328,107 +324,8 @@ const TAGS_DEFAULT = {
   monde:["Musiques du monde — Afrique","Musiques du monde — Amériques","Musiques du monde — Asie","Musiques du monde — Europe","Musiques du monde — Océanie"],
   affectif:["Indispensables","Coups de cœur","Découvertes récentes","À explorer"]
 };
-
-// TAGS_BUILTIN : valeur locale (cache). Sera remplacée par la version serveur
-// au chargement, SAUF la première fois (voir initTags) où on préserve une
-// copie de sécurité de la version locale pour pouvoir la fusionner ensuite.
 let TAGS_BUILTIN = JSON.parse(localStorage.getItem('disco_tags')||'null') || JSON.parse(JSON.stringify(TAGS_DEFAULT));
-
-// Indique si la sync serveur des tags a fonctionné au moins une fois
-let tagsServerSynced = false;
-
-async function fetchServerTags(){
-  const r = await fetch(SB_URL+'/rest/v1/app_config?select=value&key=eq.tags',{headers:SBH});
-  if(!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  if(Array.isArray(data) && data.length && data[0].value) return data[0].value;
-  return null;
-}
-
-function tagsAxisEmpty(t){
-  if(!t) return true;
-  return !(t.style&&t.style.length) && !(t.monde&&t.monde.length) && !(t.affectif&&t.affectif.length);
-}
-
-async function initTags(){
-  // 1) Sauvegarde de sécurité de la version locale actuelle de CET appareil,
-  //    une seule fois, avant toute synchro serveur — pour pouvoir la
-  //    fusionner plus tard via le bouton "Fusionner les tags de cet appareil".
-  if(!localStorage.getItem('disco_tags_presync_backup')){
-    localStorage.setItem('disco_tags_presync_backup', JSON.stringify(TAGS_BUILTIN));
-  }
-
-  try{
-    const serverTags = await fetchServerTags();
-    if(serverTags && !tagsAxisEmpty(serverTags)){
-      TAGS_BUILTIN = serverTags;
-      localStorage.setItem('disco_tags',JSON.stringify(TAGS_BUILTIN));
-      tagsServerSynced = true;
-    } else {
-      // Le serveur est vide : on pousse notre version locale comme base de départ
-      await saveTags();
-      tagsServerSynced = true;
-    }
-  }catch(e){
-    setSyncStatus('⚠️ Tags hors ligne');
-    tagsServerSynced = false;
-  }
-}
-
-async function saveTags(){
-  localStorage.setItem('disco_tags',JSON.stringify(TAGS_BUILTIN)); // cache local immédiat
-  try{
-    const r = await fetch(SB_URL+'/rest/v1/app_config?key=eq.tags',{
-      method:'PATCH',
-      headers:{...SBH,'Prefer':'return=minimal'},
-      body:JSON.stringify({value:TAGS_BUILTIN})
-    });
-    if(!r.ok) throw new Error(await r.text());
-    tagsServerSynced = true;
-  }catch(e){
-    setSyncStatus('⚠️ Erreur sync tags');
-  }
-}
-
-// Fusionne la sauvegarde "pré-sync" de cet appareil avec la version serveur actuelle,
-// publie le résultat, et la marque comme "déjà fusionnée" pour ne pas la refusionner.
-async function publishTagsMerge(){
-  const backupRaw = localStorage.getItem('disco_tags_presync_backup');
-  if(!backupRaw){
-    alert('Aucune sauvegarde locale à fusionner sur cet appareil (déjà fait ou appareil neuf).');
-    return;
-  }
-  const localBackup = JSON.parse(backupRaw);
-
-  if(!confirm('Fusionner les tags ENREGISTRÉS SUR CET APPAREIL avant la mise en ligne, avec ceux déjà présents sur le serveur ?\n\nAucun tag ne sera supprimé, seulement ajoutés (union).'))return;
-
-  let serverTags={style:[],monde:[],affectif:[]};
-  try{
-    const t = await fetchServerTags();
-    if(t) serverTags=t;
-  }catch(e){ alert('Erreur de lecture serveur : '+e.message); return; }
-
-  const merged={};
-  let addedCount=0;
-  ['style','monde','affectif'].forEach(axis=>{
-    const local=localBackup[axis]||[];
-    const remote=serverTags[axis]||[];
-    merged[axis]=[...remote];
-    local.forEach(t=>{ if(!merged[axis].includes(t)){ merged[axis].push(t); addedCount++; } });
-  });
-
-  TAGS_BUILTIN=merged;
-  await saveTags();
-
-  // On retire la sauvegarde pré-sync : elle a été fusionnée, pas la peine de la refusionner
-  localStorage.removeItem('disco_tags_presync_backup');
-
-  renderTagsManager();
-  renderFilters();
-  renderTagsSyncBanner();
-  alert('Fusion terminée ✓\n'+addedCount+' tag(s) ajouté(s) depuis cet appareil.\nTotal — Style: '+merged.style.length+' · Monde: '+merged.monde.length+' · Affectif: '+merged.affectif.length+'\n\nFaites de même sur vos autres appareils si nécessaire, puis nettoyez les doublons via le gestionnaire de tags.');
-}
-
+function saveTags(){localStorage.setItem('disco_tags',JSON.stringify(TAGS_BUILTIN));}
 // Keep customTags as empty for backward compat
 const customTags = [];
 function saveCustomTags(){}
@@ -1034,20 +931,7 @@ function openTagsManager(){
   currentAxis='style';
   renderAxisSelector();
   renderTagsManager();
-  renderTagsSyncBanner();
   document.getElementById('tagsSheet').classList.add('open');
-}
-
-function renderTagsSyncBanner(){
-  const el=document.getElementById('tagsSyncBanner');
-  if(!el) return;
-  const hasBackup = !!localStorage.getItem('disco_tags_presync_backup');
-  if(hasBackup){
-    el.style.display='block';
-    el.innerHTML = '<strong>Synchronisation des tags :</strong> cet appareil a une liste de tags antérieure à la mise en ligne. Cliquez sur le bouton ci-dessous pour la fusionner avec celle déjà en ligne (rien ne sera supprimé).';
-  } else {
-    el.style.display='none';
-  }
 }
 
 function renderAxisSelector(){
@@ -1120,12 +1004,12 @@ function startEditTag(i){
   document.getElementById('tagEdit_'+i).focus();
 }
 
-async function saveEditTag(i){
+function saveEditTag(i){
   const newVal=document.getElementById('tagEdit_'+i).value.trim();
   if(!newVal)return;
   const oldVal=TAGS_BUILTIN[currentAxis][i];
   TAGS_BUILTIN[currentAxis][i]=newVal;
-  await saveTags();
+  saveTags();
   // Update all albums that had the old tag
   albums.forEach(a=>{
     if(!a.tags)return;
@@ -1140,11 +1024,11 @@ async function saveEditTag(i){
   renderFilters();
 }
 
-async function deleteGlobalTag(i){
+function deleteGlobalTag(i){
   const tag=TAGS_BUILTIN[currentAxis][i];
   if(!confirm('Supprimer le tag "'+tag+'" de tous les albums ?'))return;
   TAGS_BUILTIN[currentAxis].splice(i,1);
-  await saveTags();
+  saveTags();
   // Remove from all albums
   albums.forEach(a=>{
     if(!a.tags)return;
@@ -1160,24 +1044,23 @@ async function deleteGlobalTag(i){
   renderGrid();
 }
 
-async function moveTag(i, dir){
+function moveTag(i, dir){
   const tags = TAGS_BUILTIN[currentAxis];
   const j = i + dir;
   if(j < 0 || j >= tags.length) return;
   const tmp = tags[i];
   tags[i] = tags[j];
   tags[j] = tmp;
-  await saveTags();
+  saveTags();
   renderTagsManager();
   renderFilters();
 }
 
-async function addGlobalTag(){
+function addGlobalTag(){
   const inp=document.getElementById('newGlobalTagInput');
   const val=inp.value.trim();if(!val)return;
   if(TAGS_BUILTIN[currentAxis].includes(val)){alert('Tag déjà existant.');return;}
-  TAGS_BUILTIN[currentAxis].push(val);
-  await saveTags();
+  TAGS_BUILTIN[currentAxis].push(val);saveTags();
   inp.value='';
   renderTagsManager();
   renderFilters();
@@ -1305,10 +1188,7 @@ function backToArtists(){
   });
 }
 
-(async function init(){
-  await initTags();
-  await loadAlbums();
-})();
+loadAlbums();
 </script>
 
 <!-- TAGS MANAGEMENT SHEET -->
@@ -1316,15 +1196,11 @@ function backToArtists(){
   <div class="sheet">
     <div class="handle"></div>
     <div class="sheet-title">Gérer les tags</div>
-    <div id="tagsSyncBanner" class="tags-sync-banner" style="display:none"></div>
     <div id="tagsAxisSelector" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
     <div id="tagsManagerList"></div>
     <div class="newtag-row" style="margin-top:16px">
       <input type="text" id="newGlobalTagInput" placeholder="Nouveau tag…" onkeydown="if(event.key==='Enter')addGlobalTag()">
       <button class="hbtn primary" onclick="addGlobalTag()">+ Ajouter</button>
-    </div>
-    <div class="mrow">
-      <button class="hbtn" style="border-color:#6eb5ff55;color:#6eb5ff" onclick="publishTagsMerge()">⇧ Fusionner les tags de cet appareil</button>
     </div>
     <div class="mrow">
       <button class="hbtn" onclick="closeSheet('tagsSheet')">Fermer</button>
